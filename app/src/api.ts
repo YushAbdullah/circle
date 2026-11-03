@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { File as FsFile, UploadType } from "expo-file-system";
 
 // SecureStore is native-only; the web build (handy for testing) falls back to localStorage.
 const store = {
@@ -70,6 +71,9 @@ export async function saveSettings(s: Settings): Promise<void> {
   await store.set(KEY, JSON.stringify({ ...s, serverUrl: s.serverUrl.trim().replace(/\/+$/, "") }));
 }
 
+const UNAUTHORIZED =
+  "Access token is missing or wrong. Open Settings and paste the APP_TOKEN from Render (Environment tab).";
+
 export class NotConfiguredError extends Error {
   constructor() {
     super("Set your server address in Settings first.");
@@ -82,6 +86,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (s.token) headers.set("Authorization", `Bearer ${s.token}`);
   const res = await fetch(`${s.serverUrl}${path}`, { ...init, headers });
+  if (res.status === 401) throw new Error(UNAUTHORIZED);
   if (!res.ok) {
     let msg = `Server error ${res.status}`;
     try {
@@ -106,16 +111,33 @@ export const api = {
   reprocess: (id: string) => request<{ ok: boolean }>(`/meetings/${id}/reprocess`, { method: "POST" }),
   remove: (id: string) => request<void>(`/meetings/${id}`, { method: "DELETE" }),
 
+  /**
+   * Upload a recording with the native uploader (streams from disk, so long
+   * meetings don't need to fit in memory).
+   */
   async upload(file: { uri: string; name: string; mimeType: string }, meta: { title?: string; durationSec?: number; liveText?: string }) {
     const s = await loadSettings();
-    const form = new FormData();
-    // React Native's FormData accepts a { uri, name, type } file descriptor.
-    form.append("audio", { uri: file.uri, name: file.name, type: file.mimeType } as unknown as Blob);
-    if (meta.title) form.append("title", meta.title);
-    if (meta.durationSec) form.append("durationSec", String(Math.round(meta.durationSec)));
-    if (s.vocabulary.trim()) form.append("vocabulary", s.vocabulary);
-    if (meta.liveText) form.append("liveText", meta.liveText);
-    return request<MeetingListItem>("/meetings", { method: "POST", body: form });
+    if (!s.serverUrl) throw new NotConfiguredError();
+    const parameters: Record<string, string> = {};
+    if (meta.title) parameters.title = meta.title;
+    if (meta.durationSec) parameters.durationSec = String(Math.round(meta.durationSec));
+    if (s.vocabulary.trim()) parameters.vocabulary = s.vocabulary;
+    if (meta.liveText) parameters.liveText = meta.liveText;
+
+    const res = await new FsFile(file.uri).upload(`${s.serverUrl}/meetings`, {
+      uploadType: UploadType.MULTIPART,
+      fieldName: "audio",
+      mimeType: file.mimeType,
+      parameters,
+      headers: s.token ? { Authorization: `Bearer ${s.token}` } : {},
+    });
+    let body: { error?: string } & Partial<MeetingListItem> = {};
+    try {
+      body = JSON.parse(res.body);
+    } catch {}
+    if (res.status === 401) throw new Error(UNAUTHORIZED);
+    if (res.status < 200 || res.status >= 300) throw new Error(body.error ?? `Server error ${res.status}`);
+    return body as MeetingListItem;
   },
 
   /** WebSocket URL for live captions while recording. */

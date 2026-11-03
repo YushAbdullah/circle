@@ -26,7 +26,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="record" options={{ title: "New recording", presentation: "fullScreenModal", headerShown: false }} />
+        <Stack.Screen name="record" options={{ title: "New recording", headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="meeting/[id]" options={{ title: "" }} />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
       </Stack>
