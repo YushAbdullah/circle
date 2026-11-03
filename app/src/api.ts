@@ -306,7 +306,7 @@ export function formatDuration(sec: number | null | undefined): string {
 }
 
 export const statusLabel: Record<MeetingStatus, string> = {
-  uploaded: "Uploading",
+  uploaded: "Preparing",
   transcribing: "Transcribing",
   summarizing: "Writing report",
   ready: "Ready",

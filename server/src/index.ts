@@ -115,24 +115,9 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     return;
   }
   const id = crypto.randomUUID();
-  let ext = path.extname(req.file.originalname || "") || ".m4a";
-  let mime = guessMime(req.file.mimetype, ext);
-  let audioPath = req.file.path;
-  try {
-    // Shrink large recordings (e.g. WAV from live mode) before storing.
-    const compressed = await compressAudio(req.file.path);
-    if (compressed) ({ path: audioPath, mime, ext } = compressed);
-    const audioFile = `${id}${ext}`;
-    await store.put(`audio/${audioFile}`, await fs.promises.readFile(audioPath), mime);
-    res.locals.audioFile = audioFile;
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Could not save the recording." });
-    return;
-  } finally {
-    await fs.promises.unlink(req.file.path).catch(() => {});
-    if (audioPath !== req.file.path) await fs.promises.unlink(audioPath).catch(() => {});
-  }
-  const audioFile = res.locals.audioFile as string;
+  const file = req.file;
+  const ext = path.extname(file.originalname || "") || ".m4a";
+  const mime = guessMime(file.mimetype, ext);
 
   const createdAt = new Date().toISOString();
   const title = String(req.body.title || "").trim() || `Meeting ${createdAt.slice(0, 16).replace("T", " ")}`;
@@ -145,7 +130,7 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     durationSec,
     status: "uploaded",
     error: null,
-    audioFile,
+    audioFile: `${id}${ext}`,
     audioMime: mime,
     transcript: null,
     report: null,
@@ -159,7 +144,31 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     .split(",")
     .map((s: string) => s.trim())
     .filter(Boolean);
-  void processMeeting(id, { numSpeakers, vocabulary });
+
+  // Answer the phone straight away; shrinking and storing the file happens in the
+  // background (it can take minutes for long recordings on the free server).
+  void (async () => {
+    let audioPath = file.path;
+    try {
+      const compressed = await compressAudio(file.path);
+      let finalExt = ext;
+      let finalMime = mime;
+      if (compressed) ({ path: audioPath, mime: finalMime, ext: finalExt } = compressed);
+      const audioFile = `${id}${finalExt}`;
+      await store.put(`audio/${audioFile}`, await fs.promises.readFile(audioPath), finalMime);
+      await updateMeeting(id, { audioFile, audioMime: finalMime });
+    } catch (err) {
+      await updateMeeting(id, {
+        status: "failed",
+        error: err instanceof Error ? `Could not save the recording: ${err.message}` : "Could not save the recording.",
+      });
+      return;
+    } finally {
+      await fs.promises.unlink(file.path).catch(() => {});
+      if (audioPath !== file.path) await fs.promises.unlink(audioPath).catch(() => {});
+    }
+    await processMeeting(id, { numSpeakers, vocabulary });
+  })();
 
   res.status(201).json(listItem(meeting));
 });
