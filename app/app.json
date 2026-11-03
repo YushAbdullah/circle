@@ -38,6 +38,19 @@
     "scheme": "circle",
     "runtimeVersion": {
       "policy": "sdkVersion"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "owner": "yushabdullah",
+    "extra": {
+      "eas": {
+        "projectId": "c226bf09-16bf-4c03-a19f-457afee09005"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c226bf09-16bf-4c03-a19f-457afee09005"
     }
   }
 }
