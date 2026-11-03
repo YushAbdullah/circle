@@ -53,13 +53,23 @@ export async function summarize(
 ): Promise<Report> {
   if (demoMode()) return demoReport;
   if (transcriptOnly()) return transcriptOnlyReport(transcript);
-  client ??= new Anthropic({ apiKey: config.anthropicKey });
-
   const vocab = [...config.keyterms, ...(opts.vocabulary ?? [])];
   const userText =
     (vocab.length ? `Vocabulary: ${vocab.join(", ")}\n\n` : "") +
     `Transcript (detected language: ${transcript.languageCode ?? "unknown"}):\n\n${formatTranscript(transcript, opts.speakerNames)}`;
 
+  const parsed = config.anthropicKey ? await withClaude(userText) : await withGemini(userText);
+
+  const cleaned = transcript.utterances.map((u) => ({ ...u }));
+  for (const c of parsed.corrections) {
+    if (cleaned[c.index]) cleaned[c.index].text = c.text;
+  }
+  const { corrections: _unused, ...rest } = parsed;
+  return { ...rest, cleanedUtterances: cleaned };
+}
+
+async function withClaude(userText: string): Promise<z.infer<typeof ReportSchema>> {
+  client ??= new Anthropic({ apiKey: config.anthropicKey });
   // Streaming because long meetings produce long outputs. Server-side fallbacks
   // re-run the request on another model if the primary model declines it.
   const stream = client.beta.messages.stream({
@@ -73,26 +83,55 @@ export async function summarize(
     messages: [{ role: "user", content: userText }],
   });
   const msg = await stream.finalMessage();
-
   if (msg.stop_reason === "refusal") throw new Error("The AI declined to summarise this recording.");
   if (msg.stop_reason === "max_tokens") throw new Error("The meeting is too long to summarise in one pass.");
-  const parsed = msg.parsed_output;
-  if (!parsed) throw new Error("The AI returned a report in an unexpected format.");
-
-  const cleaned = transcript.utterances.map((u) => ({ ...u }));
-  for (const c of parsed.corrections) {
-    if (cleaned[c.index]) cleaned[c.index].text = c.text;
-  }
-  const { corrections: _unused, ...rest } = parsed;
-  return { ...rest, cleanedUtterances: cleaned };
+  if (!msg.parsed_output) throw new Error("The AI returned a report in an unexpected format.");
+  return msg.parsed_output;
 }
 
-/** Used when no Anthropic key is set: keeps the real transcript, explains the missing report. */
+/** Google Gemini's free tier, via its REST API with a JSON schema for the reply. */
+async function withGemini(userText: string): Promise<z.infer<typeof ReportSchema>> {
+  const { $schema: _s, ...schema } = z.toJSONSchema(ReportSchema) as Record<string, unknown>;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": config.geminiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: "user", parts: [{ text: userText }] }],
+        generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema },
+      }),
+    },
+  );
+  if (!res.ok) throw new Error(`Gemini failed (${res.status}): ${(await res.text()).slice(0, 500)}`);
+  const data = (await res.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+    promptFeedback?: { blockReason?: string };
+  };
+  if (data.promptFeedback?.blockReason) throw new Error(`Gemini declined this recording (${data.promptFeedback.blockReason}).`);
+  const cand = data.candidates?.[0];
+  if (cand?.finishReason === "MAX_TOKENS") throw new Error("The meeting is too long to summarise in one pass.");
+  const text = cand?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  const result = ReportSchema.safeParse(safeJson(text));
+  if (!result.success) throw new Error("The AI returned a report in an unexpected format.");
+  return result.data;
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/** Used when no AI key is set: keeps the real transcript, explains the missing report. */
 function transcriptOnlyReport(transcript: Transcript): Report {
   return {
     title: "",
     languages: [],
-    summary: "The transcript is ready. Add an Anthropic API key on the server to get the AI summary, decisions and action items.",
+    summary: "The transcript is ready. Add a free GEMINI_API_KEY (or an ANTHROPIC_API_KEY) on the server to get the AI summary, decisions and action items.",
     keyPoints: [],
     decisions: [],
     actionItems: [],

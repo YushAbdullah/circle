@@ -37,13 +37,14 @@ Everything runs online on free plans, and every step works in your iPhone's brow
 | Storage | [Supabase](https://supabase.com) | Keeps recordings and reports (1 GB free, about 70 hours of meetings). Free projects pause after a week unused; tap Restore in Supabase to wake it. |
 | App | [Expo](https://expo.dev) + Expo Go | GitHub publishes the app to Expo automatically; you open it in Expo Go. |
 | Transcription | [ElevenLabs](https://elevenlabs.io) | Free monthly minutes. |
-| Reports | [Anthropic](https://console.anthropic.com) | Pay-as-you-go; with Claude Haiku, well under 1 US cent per meeting. |
+| Reports | [Google AI Studio](https://aistudio.google.com/apikey) (free) or [Anthropic](https://console.anthropic.com) | Gemini's free tier costs nothing but Google may use the data to improve its products. Claude Haiku is pay-as-you-go, well under 1 US cent per meeting. If both keys are set, Claude is used. |
 
 **1. Storage (Supabase).** Sign up at [supabase.com](https://supabase.com) and create a new project (any name, any password, region Singapore). When it is ready, open **Project Settings** and copy the **Project URL** and the **secret** API key (also called `service_role`). Keep the secret key private. CIRCLE creates its storage folder by itself.
 
 **2. Server (Render).** Sign up at [render.com](https://render.com) with GitHub, then open [this deploy link](https://render.com/deploy?repo=https://github.com/YushAbdullah/circle). Allow Render to see the `circle` repo if asked. Fill in:
 - `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` from step 1
-- `ELEVENLABS_API_KEY` and `ANTHROPIC_API_KEY` (leave both empty to try demo mode first)
+- `ELEVENLABS_API_KEY` for transcripts (leave empty to try demo mode first)
+- `GEMINI_API_KEY` (free) or `ANTHROPIC_API_KEY` for the AI report
 
 Tap **Apply**. When it says *Live*, copy the service address (`https://circle-server-….onrender.com`). Under **Environment**, copy the generated `APP_TOKEN`.
 

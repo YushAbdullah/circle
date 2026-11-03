@@ -19,6 +19,9 @@ export const config = {
   supabaseBucket: process.env.SUPABASE_BUCKET ?? "circle",
   anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
   claudeModel: process.env.CLAUDE_MODEL ?? "claude-opus-5-5",
+  // Free alternative for the report: Google Gemini (key from aistudio.google.com/apikey).
+  geminiKey: process.env.GEMINI_API_KEY ?? "",
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-flash-latest",
   // Comma-separated words the STT engine should listen for (names, slang, company terms).
   keyterms: (process.env.KEYTERMS ?? "")
     .split(",")
@@ -29,8 +32,8 @@ export const config = {
 /** Demo mode runs the whole flow without paid APIs, using a sample Manglish meeting. */
 /** Demo mode: no transcription key, so the sample Manglish meeting is used throughout. */
 export const demoMode = () => !config.elevenLabsKey;
-/** Real transcripts but no Claude key: transcript only, no AI report. */
-export const transcriptOnly = () => !!config.elevenLabsKey && !config.anthropicKey;
+/** Real transcripts but no AI key (Claude or Gemini): transcript only, no AI report. */
+export const transcriptOnly = () => !!config.elevenLabsKey && !config.anthropicKey && !config.geminiKey;
 
 /**
  * Accept the Supabase address in the forms people tend to paste: the project URL,

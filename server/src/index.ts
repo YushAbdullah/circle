@@ -190,7 +190,7 @@ loadMeetings().catch((e: unknown) => {
   console.error(`Storage problem: ${storageError}`);
 });
 const server = app.listen(config.port, "0.0.0.0", () => {
-  const mode = demoMode() ? " (demo mode: no ElevenLabs key)" : transcriptOnly() ? " (transcripts only: no Anthropic key)" : "";
+  const mode = demoMode() ? " (demo mode: no ElevenLabs key)" : transcriptOnly() ? " (transcripts only: no AI key)" : "";
   console.log(`CIRCLE server on http://localhost:${config.port}${mode}, storage: ${store.kind}`);
 });
 attachLive(server);
