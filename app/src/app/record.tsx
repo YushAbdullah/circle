@@ -16,6 +16,7 @@ export default function Record() {
   const [title, setTitle] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [finals, setFinals] = useState<string[]>([]);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [partial, setPartial] = useState("");
   const [live, setLive] = useState<LiveState>("connecting");
 
@@ -68,12 +69,16 @@ export default function Record() {
           finalsRef.current = [...finalsRef.current, msg.text];
           setFinals(finalsRef.current);
           setPartial("");
-        } else if (msg.type === "error") setLive("offline");
+        } else if (msg.type === "error") {
+          setLiveError(msg.message ?? null);
+          setLive("offline");
+        }
       };
       ws.onerror = () => setLive("offline");
       ws.onclose = () => setLive((s) => (s === "live" || s === "connecting" ? "offline" : s));
       wsRef.current = ws;
-    } catch {
+    } catch (e) {
+      setLiveError(e instanceof Error ? e.message : null);
       setLive("offline");
     }
   };
@@ -205,6 +210,9 @@ export default function Record() {
               {live === "live" ? "● Live" : live === "offline" ? "Captions offline, still recording" : "Connecting…"}
             </Text>
           </View>
+          {live === "offline" && liveError ? (
+            <Text style={[type.caption, { color: colors.warning, marginBottom: space.sm }]}>{liveError}</Text>
+          ) : null}
           <ScrollView
             ref={scrollRef}
             style={styles.captions}
