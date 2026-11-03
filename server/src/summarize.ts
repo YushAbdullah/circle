@@ -29,7 +29,7 @@ const SYSTEM = `You turn raw meeting transcripts into clean records and reports 
 
 The transcript comes from automatic speech recognition with speaker labels. Speakers code-switch between Malay, English and Manglish, and may use state dialects (e.g. Kelantan, Terengganu, Sabah, Sarawak, Negeri Sembilan), Chinese or Tamil loanwords, and slang ("lah", "kan", "jom", "alamak", "can or not", "tapau", "boleh tahan").
 
-1. Corrections: fix words the recogniser clearly misheard, using context and your knowledge of Malaysian speech. Keep the speaker's original language mix and particles; do not translate or formalise what they said. Only return utterances you changed.
+1. Corrections: fix words the recogniser clearly misheard, using context and your knowledge of Malaysian speech. Keep the speaker's original language mix and particles; do not translate or formalise what they said. Only return utterances you changed, at most 150, the most important first.
 2. Report: write the summary, key points, decisions and action items in clear English, so readers who missed the meeting understand it. Assign an owner and due date to an action item only when the transcript supports it; otherwise use "Unassigned" or "Not set".
 3. Glossary: list slang, dialect words and abbreviations a non-local reader might not know.
 4. Recommendations: as a sharp advisor, suggest concrete next steps, risks and open questions the team should follow up on, grounded in what was said.

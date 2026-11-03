@@ -10,11 +10,26 @@ import { config } from "./config.js";
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 export type Provider = "claude" | "groq" | "gemini";
 
-export function provider(): Provider | null {
+/**
+ * Groq's free tier only accepts about 12k tokens a minute, so long meetings
+ * (roughly over 25 minutes of talk) go to Gemini, which takes far more, when its key is set.
+ */
+const GROQ_MAX_CHARS = 30_000;
+
+export function provider(inputChars = 0): Provider | null {
   if (config.anthropicKey) return "claude";
-  if (config.groqKey) return "groq";
+  if (config.groqKey && (inputChars <= GROQ_MAX_CHARS || !config.geminiKey)) return "groq";
   if (config.geminiKey) return "gemini";
   return null;
+}
+
+function tooLongForGroq(e: unknown): Error {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/\((413|429)\)|rate_limit|too large|tokens per minute/i.test(msg))
+    return new Error(
+      "This meeting is too long for Groq's free limit. Add a free GEMINI_API_KEY on Render (it handles long meetings), then tap Try again.",
+    );
+  return e instanceof Error ? e : new Error(msg);
 }
 
 let client: Anthropic | null = null;
@@ -27,7 +42,7 @@ export async function aiJson<S extends z.ZodObject>(
   user: string,
   repair: (v: unknown) => unknown = (v) => v,
 ): Promise<z.infer<S>> {
-  const p = provider();
+  const p = provider(system.length + user.length);
   if (!p) throw new Error("No AI key on the server. Add GROQ_API_KEY (free) on Render.");
   if (p === "claude") return claudeJson(schema, system, user);
   const { $schema: _s, ...jsonSchema } = z.toJSONSchema(schema) as Record<string, unknown>;
@@ -37,7 +52,9 @@ export async function aiJson<S extends z.ZodObject>(
           `${system}\n\nReply with one JSON object only, matching this JSON schema:\n${JSON.stringify(jsonSchema)}`,
           [{ role: "user", content: user }],
           true,
-        )
+        ).catch((e) => {
+          throw tooLongForGroq(e);
+        })
       : await geminiChat(system, [{ role: "user", content: user }], jsonSchema);
   const result = schema.safeParse(repair(safeJson(text)));
   if (!result.success) throw new Error("The AI returned an answer in an unexpected format. Tap Try again.");
@@ -46,14 +63,15 @@ export async function aiJson<S extends z.ZodObject>(
 
 /** Plain-text chat reply. */
 export async function aiText(system: string, messages: ChatMessage[]): Promise<string> {
-  const p = provider();
+  const p = provider(system.length + messages.reduce((t, m) => t + m.content.length, 0));
   if (!p) throw new Error("No AI key on the server. Add GROQ_API_KEY (free) on Render.");
   if (p === "claude") {
     const msg = await claude().messages.create({ model: config.claudeModel, max_tokens: 4000, system, messages });
     if (msg.stop_reason === "refusal") throw new Error("The AI declined to answer that.");
     return msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
   }
-  return (p === "groq" ? await groqChat(system, messages, false) : await geminiChat(system, messages)).trim();
+  if (p === "groq") return (await groqChat(system, messages, false).catch((e) => { throw tooLongForGroq(e); })).trim();
+  return (await geminiChat(system, messages)).trim();
 }
 
 async function claudeJson<S extends z.ZodObject>(schema: S, system: string, user: string): Promise<z.infer<S>> {

@@ -48,6 +48,8 @@ const TranslationSchema = z.object({
   utterances: z.array(z.object({ index: z.number().int(), text: z.string() })).describe("Every utterance, by index, translated"),
 });
 
+const longMeeting = (u: { text: string }[]) => u.reduce((t, x) => t + x.text.length, 0) > 40_000;
+
 export async function translate(m: Meeting, language: string): Promise<Translation> {
   const r = m.report;
   const utterances = r?.cleanedUtterances ?? m.transcript?.utterances ?? [];
@@ -57,7 +59,8 @@ export async function translate(m: Meeting, language: string): Promise<Translati
     decisions: r?.decisions ?? [],
     recommendations: r?.recommendations ?? [],
     actionItems: (r?.actionItems ?? []).map((a) => a.task),
-    utterances: utterances.map((u, index) => ({ index, text: u.text })),
+    // Very long meetings: translate the report only; the reply would be too long otherwise.
+    utterances: longMeeting(utterances) ? [] : utterances.map((u, index) => ({ index, text: u.text })),
   };
   const system = `Translate a Malaysian meeting record into natural, clear ${language}. The source mixes Malay, English, Manglish, dialect and slang; translate the meaning so someone who does not speak those understands it. Keep names, numbers and company terms as they are. Keep list lengths and order exactly the same, and return every utterance by its index.`;
   const out = await aiJson(
