@@ -6,6 +6,7 @@ import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioStream } f
 import { api, formatDuration, type Usage } from "../api";
 import { toPcm16kMono } from "../pcm";
 import { showAlert } from "../alert";
+import { RETENTION_DAYS } from "../legal";
 import { startWebRecording, webRecordingSupported, type WebRecorder } from "../webRecorder";
 import { Button } from "../components/ui";
 import { colors, elevation, fonts, radius, space, type } from "../theme";
@@ -102,6 +103,17 @@ export default function Record() {
       setLive("offline");
     }
   };
+
+  // PDPA: everyone in the room must agree before recording starts.
+  const askConsent = () =>
+    showAlert(
+      "Does everyone agree to be recorded?",
+      `Tell everyone in this meeting that CIRCLE is recording and that AI will write a transcript and report. Only continue if they all agree. The meeting is deleted automatically after ${RETENTION_DAYS} days.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Yes, everyone agreed", onPress: () => start() },
+      ],
+    );
 
   const start = async () => {
     setPhase("starting");
@@ -287,7 +299,7 @@ export default function Record() {
         {recording ? (
           <Button label="Stop & save" variant="ink" onPress={finish} loading={phase === "saving"} style={{ flex: 1 }} />
         ) : (
-          <Button label="Start recording" onPress={start} loading={phase === "starting"} disabled={noneLeft} style={{ flex: 1 }} />
+          <Button label="Start recording" onPress={askConsent} loading={phase === "starting"} disabled={noneLeft} style={{ flex: 1 }} />
         )}
       </View>
     </SafeAreaView>

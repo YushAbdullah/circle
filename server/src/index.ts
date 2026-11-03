@@ -11,7 +11,9 @@ import { processMeeting } from "./pipeline.js";
 import { attachLive } from "./live.js";
 import { chat, speak, transcribeQuestion, translate } from "./assistant.js";
 import type { Meeting } from "./types.js";
-import { AuthError, logIn, OWNER_ID, requireUser, signUp } from "./auth.js";
+import { AuthError, logIn, OWNER_ID, requireUser, signUp, tokenFrom, userIdFromToken } from "./auth.js";
+import { ContactError, submitContact } from "./contact.js";
+import { startRetention } from "./retention.js";
 import { countMeeting, getUsage, maxSeconds, overLimit } from "./usage.js";
 
 const app = express();
@@ -53,6 +55,16 @@ const authRoute =
   };
 app.post("/auth/signup", authRoute(signUp));
 app.post("/auth/login", authRoute(logIn));
+
+// "Contact us" works without logging in (e.g. someone who can't log in or wants their data deleted).
+app.post("/contact", async (req: Request, res: Response) => {
+  try {
+    await submitContact(req.body ?? {}, req.ip ?? "unknown", userIdFromToken(tokenFrom(req)));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(e instanceof ContactError ? e.status : 500).json({ error: e instanceof Error ? e.message : "Could not send." });
+  }
+});
 
 app.use(requireUser);
 
@@ -338,7 +350,7 @@ app.delete("/meetings/:id", async (req, res) => {
 
 // Open the port first so the host sees the server, even if storage is misconfigured.
 let storageError: string | null = null;
-loadMeetings().catch((e: unknown) => {
+loadMeetings().then(startRetention, (e: unknown) => {
   storageError = e instanceof Error ? e.message : String(e);
   console.error(`Storage problem: ${storageError}`);
 });

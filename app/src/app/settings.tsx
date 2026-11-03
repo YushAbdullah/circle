@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { api, loadSettings, logOut, saveSettings, type Settings } from "../api";
 import { showAlert } from "../alert";
+import { PAGE_ORDER } from "../legal";
 import { Button, Card } from "../components/ui";
 import { colors, fonts, radius, space, type } from "../theme";
 
@@ -47,6 +48,20 @@ export default function SettingsScreen() {
           {s.account ? `Logged in as ${s.account.name} (${s.account.email})` : "Using the shared access token"}
         </Text>
         <Button label="Log out" variant="ghost" onPress={() => logOut()} />
+      </Card>
+      <Card>
+        <Text style={[type.title, { marginBottom: space.xs }]}>About and policies</Text>
+        {[...PAGE_ORDER, { key: "contact", label: "Contact us" }].map((p) => (
+          <Pressable
+            key={p.key}
+            onPress={() => router.push(p.key === "contact" ? "/contact" : `/info/${p.key}`)}
+            accessibilityRole="link"
+            style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", justifyContent: "space-between" }}
+          >
+            <Text style={type.body}>{p.label}</Text>
+            <Text style={type.body}>›</Text>
+          </Pressable>
+        ))}
       </Card>
       {/* The web version has its server address built in; the phone app can still change it. */}
       {Platform.OS !== "web" ? (

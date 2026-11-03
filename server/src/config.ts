@@ -13,6 +13,10 @@ export const config = {
   // Limits for everyone except the owner. 0 means no limit.
   meetingsPerMonth: Number(process.env.MEETINGS_PER_MONTH ?? 5),
   maxMeetingMinutes: Number(process.env.MAX_MEETING_MINUTES ?? 30),
+  // Meetings (recording, transcript, report) are permanently deleted after this many days. 0 = keep.
+  // Where "Contact us" requests are emailed. Kept on the server only, never shown to users.
+  contactEmail: (process.env.CONTACT_EMAIL ?? "").trim(),
+  retentionDays: Number(process.env.RETENTION_DAYS ?? 30),
   dataDir: path.resolve(process.env.DATA_DIR ?? "./data"),
   elevenLabsKey: process.env.ELEVENLABS_API_KEY ?? "",
   sttModel: process.env.STT_MODEL ?? "scribe_v2",

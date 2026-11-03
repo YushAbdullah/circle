@@ -12,7 +12,7 @@ export default function RootLayout() {
 
   // Not logged in yet: show the log-in screen.
   useEffect(() => {
-    if (!loaded || first === "login") return;
+    if (!loaded || first === "login" || first === "info" || first === "contact") return;
     loadSettings().then((s) => {
       if (!s.token) router.replace("/login");
     });
@@ -41,6 +41,8 @@ export default function RootLayout() {
         <Stack.Screen name="meeting/[id]" options={{ title: "" }} />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="login" options={{ title: "Log in", headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="info/[page]" options={{ title: "" }} />
+        <Stack.Screen name="contact" options={{ title: "Contact us" }} />
       </Stack>
     </>
   );

@@ -15,6 +15,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [inviteRequired, setInviteRequired] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,10 +27,14 @@ export default function Login() {
   }, []);
 
   const submit = async () => {
+    if (mode === "signup" && !agreed) {
+      setError("Please tick the box to agree to the Terms, Privacy Policy and AI Use Policy.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      if (mode === "signup") await api.signUp({ name, email, password, inviteCode });
+      if (mode === "signup") await api.signUp({ name, email, password, inviteCode, acceptedTerms: agreed });
       else await api.logIn({ email, password });
       router.replace("/");
     } catch (e) {
@@ -80,6 +85,23 @@ export default function Login() {
                 autoCapitalize="none"
               />
             ) : null}
+            {signup ? (
+              <Pressable
+                onPress={() => setAgreed(!agreed)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: agreed }}
+                style={styles.agreeRow}
+              >
+                <View style={[styles.box, agreed && styles.boxOn]}>{agreed ? <Text style={styles.tick}>✓</Text> : null}</View>
+                <Text style={[type.bodySm, { flex: 1 }]}>
+                  I am 18 or older and agree to the{" "}
+                  <Text style={styles.link} onPress={() => router.push("/info/terms")}>Terms of Service</Text>,{" "}
+                  <Text style={styles.link} onPress={() => router.push("/info/privacy")}>Privacy Policy (PDPA)</Text> and{" "}
+                  <Text style={styles.link} onPress={() => router.push("/info/ai")}>AI Use Policy</Text>. I consent to CIRCLE
+                  processing my data as described, including by providers outside Malaysia.
+                </Text>
+              </Pressable>
+            ) : null}
             {error ? <Text style={[type.bodySm, { color: colors.danger, marginBottom: space.md }]}>{error}</Text> : null}
             <Button label={signup ? "Create account" : "Log in"} onPress={submit} loading={busy} />
           </Card>
@@ -95,6 +117,24 @@ export default function Login() {
           >
             <Text style={type.label}>{signup ? "Already have an account? Log in" : "New here? Create an account"}</Text>
           </Pressable>
+          <View style={styles.footer}>
+            {[
+              ["about", "About"],
+              ["plans", "Plans"],
+              ["terms", "Terms"],
+              ["privacy", "Privacy"],
+              ["ai", "AI use"],
+              ["contact", "Contact us"],
+            ].map(([key, label]) => (
+              <Text
+                key={key}
+                style={[type.caption, styles.link]}
+                onPress={() => router.push(key === "contact" ? "/contact" : `/info/${key}`)}
+              >
+                {label}
+              </Text>
+            ))}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -112,6 +152,21 @@ function Field({ label, hint, ...props }: { label: string; hint?: string } & Rea
 }
 
 const styles = StyleSheet.create({
+  agreeRow: { flexDirection: "row", gap: space.sm, alignItems: "flex-start", marginBottom: space.md },
+  box: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.textSubtle,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  boxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tick: { color: colors.onPrimary, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 16 },
+  link: { color: colors.success, textDecorationLine: "underline" },
+  footer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space.md, marginTop: space.xl },
   screen: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { padding: space.md, paddingTop: space.xl, width: "100%", maxWidth: 480, alignSelf: "center" },
   input: {

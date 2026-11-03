@@ -9,6 +9,7 @@ import { AudioBar, type AudioBarHandle } from "../../components/AudioBar";
 import { PromptModal } from "../../components/PromptModal";
 import { Button, Card, Empty, SectionTitle, StatusPill } from "../../components/ui";
 import { colors, elevation, radius, space, type } from "../../theme";
+import { RETENTION_DAYS } from "../../legal";
 
 // Speaker accent dots: mint, ink, then derived greens/greys (decorative only, never text colour).
 const SPEAKER_DOTS = [colors.primary, colors.ink, colors.accent, "#9AA59C", "#B7E4C0", "#5F655F"];
@@ -254,6 +255,20 @@ export default function MeetingScreen() {
             <Card>
               <SectionTitle>Summary</SectionTitle>
               <Text style={type.body}>{view.summary}</Text>
+              {hasAiReport ? (
+                <Text style={[type.caption, { marginTop: space.md }]}>
+                  Written by AI as suggestions, not decisions. Check names, numbers and dates before acting.
+                </Text>
+              ) : null}
+              <Text style={[type.caption, { marginTop: space.xs }]}>
+                This meeting will be deleted on{" "}
+                {new Date(new Date(m.createdAt).getTime() + RETENTION_DAYS * 864e5).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+                .
+              </Text>
               {!hasAiReport ? (
                 <View style={{ marginTop: space.md }}>
                   <Button label="Write AI report" variant="ink" onPress={async () => { await api.reprocess(m.id); load(); }} />

@@ -176,6 +176,12 @@ export interface Usage {
 
 export const api = {
   usage: () => request<Usage>("/usage"),
+  contact: (input: { name: string; email: string; topic: string; message: string }) =>
+    request<{ ok: boolean }>("/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
   health: () =>
     request<{
       ok: boolean;
@@ -184,8 +190,8 @@ export const api = {
       storage?: "local" | "supabase";
       inviteRequired?: boolean;
     }>("/health"),
-  signUp: (input: { email: string; password: string; name: string; inviteCode?: string }) =>
-    authCall("/auth/signup", { ...input, inviteCode: input.inviteCode ?? "" }),
+  signUp: (input: { email: string; password: string; name: string; inviteCode?: string; acceptedTerms: boolean }) =>
+    authCall("/auth/signup", { ...input, inviteCode: input.inviteCode ?? "", acceptedTerms: String(input.acceptedTerms) }),
   logIn: (input: { email: string; password: string }) => authCall("/auth/login", input),
   list: () => request<MeetingListItem[]>("/meetings"),
   get: (id: string) => request<Meeting>(`/meetings/${id}`),
