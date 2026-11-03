@@ -1,0 +1,20 @@
+import path from "node:path";
+
+export const config = {
+  port: Number(process.env.PORT ?? 4000),
+  // Shared secret the phone app sends as "Authorization: Bearer <token>".
+  appToken: process.env.APP_TOKEN ?? "",
+  dataDir: path.resolve(process.env.DATA_DIR ?? "./data"),
+  elevenLabsKey: process.env.ELEVENLABS_API_KEY ?? "",
+  sttModel: process.env.STT_MODEL ?? "scribe_v2",
+  anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
+  claudeModel: process.env.CLAUDE_MODEL ?? "claude-opus-5-5",
+  // Comma-separated words the STT engine should listen for (names, slang, company terms).
+  keyterms: (process.env.KEYTERMS ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean),
+};
+
+/** Demo mode runs the whole flow without paid APIs, using a sample Manglish meeting. */
+export const demoMode = () => !config.elevenLabsKey || !config.anthropicKey;
