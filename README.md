@@ -2,13 +2,18 @@
 
 Record a meeting on your phone. CIRCLE stores the recording, writes a transcript that shows who said what, and has AI write the report: summary, key points, decisions, action items, and a glossary of slang and dialect words. It handles Malay, English, Manglish and code-switching.
 
-| Home | Report | Conversation | Recording |
+| Home | Live captions | Report | Conversation |
 |---|---|---|---|
-| ![](docs/screenshots/home.png) | ![](docs/screenshots/report.png) | ![](docs/screenshots/conversation.png) | ![](docs/screenshots/record.png) |
+| ![](docs/screenshots/home.png) | ![](docs/screenshots/live.png) | ![](docs/screenshots/report.png) | ![](docs/screenshots/conversation.png) |
 
 ## How it works
 
 ```
+While recording:
+Phone app  ──live audio (WebSocket)──▶  server  ──▶  ElevenLabs realtime
+           ◀──────── live captions ─────────────────────┘
+
+After you tap Stop & save:
 Phone app (Expo)  ──upload audio──▶  CIRCLE server (Node)
                                        │ 1. saves the recording
                                        │ 2. ElevenLabs Scribe: speech-to-text + speaker labels
@@ -67,7 +72,7 @@ Leave both API keys empty for demo mode.
    - **Server address**: your computer's local IP, e.g. `http://192.168.1.20:4000` (on Windows run `ipconfig`, on Mac go to System Settings > Wi-Fi > Details).
    - **Access token**: the `APP_TOKEN` from `.env`.
    - **Custom words**: names and slang you want recognised.
-5. Tap **Record**, talk, then tap **Stop & save**. The report appears in a minute or two.
+5. Tap **Record**, then **Start recording**. Captions appear on screen as people talk. Tap **Stop & save**; the recording is stored and the full report with speaker names appears in a minute or two.
 
 Expo Go only records while the app is open on screen. To keep recording with the screen locked, build the real app (step 5).
 
@@ -95,6 +100,7 @@ The installed app expects an `https://` server address (step 4); plain `http://`
 ## Dialects and slang
 
 - The transcriber detects the language for each recording instead of forcing one, which suits Malay–English code-switching.
+- Live captions expect Malay with English mixed in (`LIVE_LANGUAGE=ms`, `LIVE_SECONDARY_LANGUAGES=en`). Add `zh` or `ta` if your meetings mix in Chinese or Tamil. Live captions have no speaker names; the final transcript does.
 - Custom words (in Settings and in `KEYTERMS`) are sent to the transcriber and to Claude.
 - Claude corrects words the transcriber clearly misheard but keeps people's original mix of Malay, English and particles like *lah*, *kan* and *meh*. The report itself is in English.
 - If a heavy dialect (Kelantan, Terengganu, Sabah) transcribes poorly, the transcriber can be swapped for a Malaysian-tuned Whisper model in `server/src/transcribe.ts` without changing the app.
@@ -105,9 +111,10 @@ The installed app expects an `https://` server address (step 4); plain `http://`
 |---|---|---|
 | GET | `/health` | Server status and whether demo mode is on |
 | GET | `/meetings` | List meetings |
-| POST | `/meetings` | Upload audio (`audio` file field; optional `title`, `durationSec`, `numSpeakers`, `vocabulary`) |
+| POST | `/meetings` | Upload audio (`audio` file field; optional `title`, `durationSec`, `numSpeakers`, `vocabulary`, `liveText`) |
 | GET | `/meetings/:id` | Full meeting: transcript, report, speaker names |
 | GET | `/meetings/:id/audio` | Stream the recording |
+| WS | `/live?token=…` | Live captions: send 16 kHz mono 16-bit PCM, receive `{type: "partial"\|"final", text}` |
 | PATCH | `/meetings/:id` | Rename the meeting or speakers: `{ "title": "...", "speakerNames": { "speaker_0": "Yusri" } }` |
 | POST | `/meetings/:id/reprocess` | Rerun the AI report |
 | DELETE | `/meetings/:id` | Delete the meeting and its recording |

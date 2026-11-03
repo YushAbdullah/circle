@@ -1,84 +1,164 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View, Pressable } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from "expo-audio";
+import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioStream } from "expo-audio";
 import { api, formatDuration } from "../api";
+import { toPcm16kMono } from "../pcm";
 import { Button } from "../components/ui";
 import { colors, elevation, fonts, radius, space, type } from "../theme";
 
-type Phase = "idle" | "recording" | "paused" | "saving";
+type Phase = "idle" | "starting" | "recording" | "saving";
+type LiveState = "connecting" | "live" | "offline";
 
 export default function Record() {
-  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, directory: "document" });
-  const state = useAudioRecorderState(recorder);
   const [phase, setPhase] = useState<Phase>("idle");
   const [title, setTitle] = useState("");
-  const started = useRef(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [finals, setFinals] = useState<string[]>([]);
+  const [partial, setPartial] = useState("");
+  const [live, setLive] = useState<LiveState>("connecting");
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const startedAt = useRef(0);
+  const finalsRef = useRef<string[]>([]);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const recordingRef = useRef(false);
+
+  // Raw microphone audio: written to a WAV file on the phone (the stored recording)
+  // and, at the same time, streamed to the server for live captions.
+  const { stream } = useAudioStream({
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "int16",
+    onBuffer: (buf) => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(toPcm16kMono(buf.data, buf.sampleRate, buf.channels));
+    },
+  });
 
   useEffect(() => {
-    (async () => {
+    if (phase !== "recording") return;
+    const t = setInterval(() => setElapsed((Date.now() - startedAt.current) / 1000), 500);
+    return () => clearInterval(t);
+  }, [phase]);
+
+  useEffect(
+    () => () => {
+      wsRef.current?.close();
+      if (recordingRef.current) {
+        stream.stopFileRecordingAsync().catch(() => {});
+        stream.stop();
+      }
+      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+    },
+    [],
+  );
+
+  const connectLive = async () => {
+    setLive("connecting");
+    try {
+      const ws = new WebSocket(await api.liveUrl());
+      ws.binaryType = "arraybuffer";
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(String(e.data)) as { type: string; text?: string; message?: string };
+        if (msg.type === "ready") setLive("live");
+        else if (msg.type === "partial") setPartial(msg.text ?? "");
+        else if (msg.type === "final" && msg.text) {
+          finalsRef.current = [...finalsRef.current, msg.text];
+          setFinals(finalsRef.current);
+          setPartial("");
+        } else if (msg.type === "error") setLive("offline");
+      };
+      ws.onerror = () => setLive("offline");
+      ws.onclose = () => setLive((s) => (s === "live" || s === "connecting" ? "offline" : s));
+      wsRef.current = ws;
+    } catch {
+      setLive("offline");
+    }
+  };
+
+  const start = async () => {
+    setPhase("starting");
+    if (!stream) {
+      setPhase("idle");
+      Alert.alert("Not supported", "Live recording isn't available on this device.");
+      return;
+    }
+    try {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
         Alert.alert("Microphone needed", "Allow microphone access in your phone settings to record meetings.");
-        router.back();
+        setPhase("idle");
         return;
       }
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-      // Keep recording when the screen locks. Needs a development/production build, not Expo Go.
+      // Keep recording with the screen locked (needs the installed app, not Expo Go).
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true, allowsBackgroundRecording: true }).catch(
         () => {},
       );
-    })();
-    return () => {
-      if (started.current) recorder.stop().catch(() => {});
-      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
-    };
-  }, []);
-
-  const start = async () => {
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    started.current = true;
-    setPhase("recording");
-  };
-
-  const togglePause = () => {
-    if (phase === "recording") {
-      recorder.pause();
-      setPhase("paused");
-    } else {
-      recorder.record();
+      await stream.start();
+      await stream.startFileRecordingAsync({ directory: "document", format: "wav" });
+      recordingRef.current = true;
+      startedAt.current = Date.now();
       setPhase("recording");
+      connectLive();
+    } catch (e) {
+      console.warn("Could not start recording", e);
+      stream?.stop();
+      setPhase("idle");
+      Alert.alert("Could not start recording", (e as Error).message);
     }
   };
 
   const finish = async () => {
-    const durationSec = state.durationMillis / 1000;
     setPhase("saving");
+    let file: { uri: string; duration: number } | null = null;
     try {
-      await recorder.stop();
-      started.current = false;
-      const uri = recorder.uri;
-      if (!uri) throw new Error("The recording could not be saved.");
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "stop" }));
+      file = await stream.stopFileRecordingAsync();
+      stream.stop();
+      recordingRef.current = false;
+      setTimeout(() => ws?.close(), 1500);
+
+      const liveText = [...finalsRef.current, partial].filter(Boolean).join("\n");
       await api.upload(
-        { uri, name: `meeting-${Date.now()}.m4a`, mimeType: "audio/mp4" },
-        { title: title.trim() || undefined, durationSec },
+        { uri: file.uri, name: `meeting-${Date.now()}.wav`, mimeType: "audio/wav" },
+        { title: title.trim() || undefined, durationSec: file.duration, liveText },
       );
       router.back();
     } catch (e) {
-      setPhase("paused");
-      Alert.alert("Upload failed", `${(e as Error).message}\n\nYour recording is still on this phone. Try again when you're back online.`);
+      setPhase(file ? "saving" : "recording");
+      Alert.alert(
+        "Upload failed",
+        `${(e as Error).message}\n\nThe recording is saved on this phone${file ? "" : " and still running"}.`,
+        file
+          ? [
+              { text: "Discard", style: "destructive", onPress: () => router.back() },
+              { text: "Try again", onPress: () => retryUpload(file!) },
+            ]
+          : undefined,
+      );
     }
   };
 
-  const discard = () => {
+  const retryUpload = async (file: { uri: string; duration: number }) => {
+    try {
+      await api.upload(
+        { uri: file.uri, name: `meeting-${Date.now()}.wav`, mimeType: "audio/wav" },
+        { title: title.trim() || undefined, durationSec: file.duration, liveText: finalsRef.current.join("\n") },
+      );
+      router.back();
+    } catch (e) {
+      Alert.alert("Upload failed", (e as Error).message, [
+        { text: "Discard", style: "destructive", onPress: () => router.back() },
+        { text: "Try again", onPress: () => retryUpload(file) },
+      ]);
+    }
+  };
+
+  const close = () => {
     if (phase === "idle") return router.back();
     Alert.alert("Discard recording?", "This recording will be lost.", [
       { text: "Keep recording", style: "cancel" },
@@ -86,50 +166,69 @@ export default function Record() {
     ]);
   };
 
-  const live = phase === "recording";
+  const recording = phase === "recording" || phase === "saving";
 
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.top}>
-        <Pressable onPress={discard} hitSlop={12} accessibilityRole="button">
+        <Pressable onPress={close} hitSlop={12} accessibilityRole="button">
           <Text style={type.label}>{phase === "idle" ? "Close" : "Discard"}</Text>
         </Pressable>
-        <Text style={[type.caption, { color: live ? colors.danger : colors.textSubtle }]}>
-          {live ? "● REC" : phase === "paused" ? "PAUSED" : ""}
-        </Text>
+        {recording ? (
+          <View style={styles.liveTag}>
+            <View style={[styles.dot, { backgroundColor: colors.danger }]} />
+            <Text style={[type.label, { fontVariant: ["tabular-nums"] }]}>{formatDuration(elapsed) || "0:00"}</Text>
+          </View>
+        ) : null}
       </View>
 
-      <View style={styles.center}>
-        <View style={[styles.glow, live && { backgroundColor: colors.surfaceTint }]} />
-        <Text style={styles.timer} accessibilityLabel="Recording time">
-          {formatDuration(state.durationMillis / 1000) || "0:00"}
-        </Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Meeting title (optional)"
-          placeholderTextColor={colors.textSubtle}
-          style={styles.input}
-        />
-        <Text style={[type.bodySm, { textAlign: "center", marginTop: space.md }]}>
-          Put the phone in the middle of the table. Speakers are separated automatically.
-        </Text>
-      </View>
+      {!recording ? (
+        <View style={styles.center}>
+          <Text style={styles.timer}>0:00</Text>
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Meeting title (optional)"
+            placeholderTextColor={colors.textSubtle}
+            style={styles.input}
+          />
+          <Text style={[type.bodySm, { textAlign: "center", marginTop: space.md }]}>
+            Put the phone in the middle of the table. You'll see what people say live, and the full report with speaker
+            names comes after you stop.
+          </Text>
+        </View>
+      ) : (
+        <View style={{ flex: 1, paddingHorizontal: space.md }}>
+          <View style={styles.captionHeader}>
+            <Text style={type.title}>Live captions</Text>
+            <Text style={[type.caption, { color: live === "live" ? colors.success : live === "offline" ? colors.warning : colors.textSubtle }]}>
+              {live === "live" ? "● Live" : live === "offline" ? "Captions offline, still recording" : "Connecting…"}
+            </Text>
+          </View>
+          <ScrollView
+            ref={scrollRef}
+            style={styles.captions}
+            contentContainerStyle={{ padding: space.md, gap: space.sm }}
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          >
+            {finals.length === 0 && !partial ? (
+              <Text style={[type.bodySm, { color: colors.textSubtle }]}>Start talking. Captions appear here.</Text>
+            ) : null}
+            {finals.map((line, i) => (
+              <Text key={i} style={[type.body, { color: colors.text }]}>
+                {line}
+              </Text>
+            ))}
+            {partial ? <Text style={[type.body, { color: colors.textSubtle }]}>{partial}</Text> : null}
+          </ScrollView>
+        </View>
+      )}
 
       <View style={styles.controls}>
-        {phase === "idle" ? (
-          <Button label="Start recording" onPress={start} style={{ flex: 1 }} />
+        {recording ? (
+          <Button label="Stop & save" variant="ink" onPress={finish} loading={phase === "saving"} style={{ flex: 1 }} />
         ) : (
-          <>
-            <Button
-              label={phase === "paused" ? "Resume" : "Pause"}
-              variant="ghost"
-              onPress={togglePause}
-              disabled={phase === "saving"}
-              style={{ flex: 1 }}
-            />
-            <Button label="Stop & save" variant="ink" onPress={finish} loading={phase === "saving"} style={{ flex: 1.3 }} />
-          </>
+          <Button label="Start recording" onPress={start} loading={phase === "starting"} style={{ flex: 1 }} />
         )}
       </View>
     </SafeAreaView>
@@ -138,9 +237,19 @@ export default function Record() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surfaceMuted },
-  top: { flexDirection: "row", justifyContent: "space-between", padding: space.md },
+  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: space.md },
+  liveTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    ...elevation.e1,
+  },
+  dot: { width: 8, height: 8, borderRadius: radius.full },
   center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg },
-  glow: { position: "absolute", width: 320, height: 320, borderRadius: radius.full },
   timer: { fontFamily: fonts.semibold, fontSize: 72, letterSpacing: -1.5, color: colors.text, fontVariant: ["tabular-nums"] },
   input: {
     marginTop: space.lg,
@@ -154,5 +263,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     ...elevation.e1,
   },
+  captionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: space.sm },
+  captions: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg, ...elevation.e2 },
   controls: { flexDirection: "row", gap: space.sm, padding: space.md, paddingBottom: space.xl },
 });

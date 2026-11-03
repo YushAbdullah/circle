@@ -7,6 +7,12 @@ export const config = {
   dataDir: path.resolve(process.env.DATA_DIR ?? "./data"),
   elevenLabsKey: process.env.ELEVENLABS_API_KEY ?? "",
   sttModel: process.env.STT_MODEL ?? "scribe_v2",
+  // Live captions: main language plus extra languages expected in the same meeting.
+  liveLanguage: process.env.LIVE_LANGUAGE ?? "ms",
+  liveSecondaryLanguages: (process.env.LIVE_SECONDARY_LANGUAGES ?? "en")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean),
   anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
   claudeModel: process.env.CLAUDE_MODEL ?? "claude-opus-5-5",
   // Comma-separated words the STT engine should listen for (names, slang, company terms).

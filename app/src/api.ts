@@ -42,6 +42,7 @@ export interface MeetingListItem {
 export interface Meeting extends Omit<MeetingListItem, "summary"> {
   transcript: { languageCode: string | null; utterances: Utterance[] } | null;
   report: Report | null;
+  liveText: string | null;
   speakerNames: Record<string, string>;
 }
 
@@ -103,7 +104,7 @@ export const api = {
   reprocess: (id: string) => request<{ ok: boolean }>(`/meetings/${id}/reprocess`, { method: "POST" }),
   remove: (id: string) => request<void>(`/meetings/${id}`, { method: "DELETE" }),
 
-  async upload(file: { uri: string; name: string; mimeType: string }, meta: { title?: string; durationSec?: number }) {
+  async upload(file: { uri: string; name: string; mimeType: string }, meta: { title?: string; durationSec?: number; liveText?: string }) {
     const s = await loadSettings();
     const form = new FormData();
     // React Native's FormData accepts a { uri, name, type } file descriptor.
@@ -111,7 +112,16 @@ export const api = {
     if (meta.title) form.append("title", meta.title);
     if (meta.durationSec) form.append("durationSec", String(Math.round(meta.durationSec)));
     if (s.vocabulary.trim()) form.append("vocabulary", s.vocabulary);
+    if (meta.liveText) form.append("liveText", meta.liveText);
     return request<MeetingListItem>("/meetings", { method: "POST", body: form });
+  },
+
+  /** WebSocket URL for live captions while recording. */
+  async liveUrl() {
+    const s = await loadSettings();
+    if (!s.serverUrl) throw new NotConfiguredError();
+    const base = s.serverUrl.replace(/^http/i, "ws");
+    return `${base}/live${s.token ? `?token=${encodeURIComponent(s.token)}` : ""}`;
   },
 
   async audioSource(id: string) {

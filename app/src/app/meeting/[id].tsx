@@ -129,6 +129,13 @@ export default function MeetingScreen() {
           </Card>
         ) : null}
 
+        {!utterances.length && m.liveText ? (
+          <Card>
+            <SectionTitle>Live captions</SectionTitle>
+            <Text style={type.body}>{m.liveText}</Text>
+          </Card>
+        ) : null}
+
         {m.status === "failed" ? (
           <Card>
             <Text style={[type.title, { color: colors.danger }]}>Processing failed</Text>

@@ -42,6 +42,8 @@ export interface Meeting {
   audioMime: string;
   transcript: Transcript | null;
   report: Report | null;
+  /** Captions shown on the phone while recording (no speaker labels). */
+  liveText: string | null;
   /** User overrides: speaker id -> display name. */
   speakerNames: Record<string, string>;
 }

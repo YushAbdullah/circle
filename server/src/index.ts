@@ -7,6 +7,7 @@ import { config, demoMode } from "./config.js";
 import { deleteMeeting, getMeeting, listMeetings, saveMeeting, updateMeeting } from "./db.js";
 import { audioPath, removeAudio, storeAudio, uploadTmpDir } from "./storage.js";
 import { processMeeting } from "./pipeline.js";
+import { attachLive } from "./live.js";
 import type { Meeting } from "./types.js";
 
 const app = express();
@@ -98,6 +99,7 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     audioMime: guessMime(req.file.mimetype, ext),
     transcript: null,
     report: null,
+    liveText: typeof req.body.liveText === "string" && req.body.liveText.trim() ? req.body.liveText.trim() : null,
     speakerNames: {},
   };
   saveMeeting(meeting);
@@ -165,6 +167,7 @@ app.delete("/meetings/:id", async (req, res) => {
   res.status(204).end();
 });
 
-app.listen(config.port, "0.0.0.0", () => {
+const server = app.listen(config.port, "0.0.0.0", () => {
   console.log(`CIRCLE server on http://localhost:${config.port}${demoMode() ? " (demo mode: no API keys set)" : ""}`);
 });
+attachLive(server);
