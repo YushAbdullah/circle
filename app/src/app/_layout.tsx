@@ -25,7 +25,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.surfaceMuted },
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="index" options={{ title: "Home", headerShown: false }} />
         <Stack.Screen name="record" options={{ title: "New recording", headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="meeting/[id]" options={{ title: "" }} />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
