@@ -10,6 +10,9 @@ export const config = {
   ownerEmail: process.env.OWNER_EMAIL ?? "",
   // Optional: people need this code to create an account (keeps costs under control).
   inviteCode: (process.env.INVITE_CODE ?? "").trim(),
+  // Limits for everyone except the owner. 0 means no limit.
+  meetingsPerMonth: Number(process.env.MEETINGS_PER_MONTH ?? 5),
+  maxMeetingMinutes: Number(process.env.MAX_MEETING_MINUTES ?? 30),
   dataDir: path.resolve(process.env.DATA_DIR ?? "./data"),
   elevenLabsKey: process.env.ELEVENLABS_API_KEY ?? "",
   sttModel: process.env.STT_MODEL ?? "scribe_v2",

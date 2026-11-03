@@ -12,6 +12,7 @@ import { attachLive } from "./live.js";
 import { chat, speak, transcribeQuestion, translate } from "./assistant.js";
 import type { Meeting } from "./types.js";
 import { AuthError, logIn, OWNER_ID, requireUser, signUp } from "./auth.js";
+import { countMeeting, getUsage, maxSeconds, overLimit } from "./usage.js";
 
 const app = express();
 app.use(express.json());
@@ -101,6 +102,11 @@ function listItem(m: Meeting) {
   };
 }
 
+// How many meetings this person has left this month.
+app.get("/usage", async (req, res) => {
+  res.json(await getUsage(req.userId));
+});
+
 app.get("/meetings", (req, res) => {
   res.json(
     listMeetings()
@@ -114,13 +120,20 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     res.status(400).json({ error: "Attach the recording as the 'audio' field." });
     return;
   }
+  const limitError = await overLimit(req.userId);
+  if (limitError) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    res.status(403).json({ error: limitError });
+    return;
+  }
+  const maxSec = maxSeconds(req.userId);
   const id = crypto.randomUUID();
   let ext = path.extname(req.file.originalname || "") || ".m4a";
   let mime = guessMime(req.file.mimetype, ext);
   let audioPath = req.file.path;
   try {
     // Shrink large recordings (e.g. WAV from live mode) before storing.
-    const compressed = await compressAudio(req.file.path);
+    const compressed = await compressAudio(req.file.path, maxSec);
     if (compressed) ({ path: audioPath, mime, ext } = compressed);
     const audioFile = `${id}${ext}`;
     await store.put(`audio/${audioFile}`, await fs.promises.readFile(audioPath), mime);
@@ -136,7 +149,8 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
 
   const createdAt = new Date().toISOString();
   const title = String(req.body.title || "").trim() || `Meeting ${createdAt.slice(0, 16).replace("T", " ")}`;
-  const durationSec = req.body.durationSec ? Number(req.body.durationSec) : null;
+  let durationSec = req.body.durationSec ? Number(req.body.durationSec) : null;
+  if (maxSec && durationSec) durationSec = Math.min(durationSec, maxSec);
   const meeting: Meeting = {
     id,
     ownerId: req.userId,
@@ -153,6 +167,7 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     speakerNames: {},
   };
   await saveMeeting(meeting);
+  await countMeeting(req.userId);
 
   const numSpeakers = req.body.numSpeakers ? Number(req.body.numSpeakers) : undefined;
   const vocabulary = String(req.body.vocabulary ?? "")

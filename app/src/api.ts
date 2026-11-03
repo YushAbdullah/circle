@@ -167,7 +167,15 @@ async function authCall(path: string, body: Record<string, string>): Promise<Acc
   return r.user;
 }
 
+export interface Usage {
+  limited: boolean;
+  used: number;
+  max: number;
+  maxMinutes: number;
+}
+
 export const api = {
+  usage: () => request<Usage>("/usage"),
   health: () =>
     request<{
       ok: boolean;

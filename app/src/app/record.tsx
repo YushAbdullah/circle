@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, typ
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioStream } from "expo-audio";
-import { api, formatDuration } from "../api";
+import { api, formatDuration, type Usage } from "../api";
 import { toPcm16kMono } from "../pcm";
 import { showAlert } from "../alert";
 import { startWebRecording, webRecordingSupported, type WebRecorder } from "../webRecorder";
@@ -24,6 +24,7 @@ export default function Record() {
   const [liveError, setLiveError] = useState<string | null>(null);
   const [partial, setPartial] = useState("");
   const [live, setLive] = useState<LiveState>("connecting");
+  const [usage, setUsage] = useState<Usage | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const startedAt = useRef(0);
@@ -43,6 +44,18 @@ export default function Record() {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(toPcm16kMono(buf.data, buf.sampleRate, buf.channels));
     },
   });
+
+  useEffect(() => {
+    api.usage().then(setUsage, () => {});
+  }, []);
+
+  const limitSec = usage?.limited && usage.maxMinutes ? usage.maxMinutes * 60 : null;
+  const noneLeft = !!usage?.limited && usage.max > 0 && usage.used >= usage.max;
+
+  // Stop and save automatically at the time limit.
+  useEffect(() => {
+    if (phase === "recording" && limitSec && elapsed >= limitSec) finish();
+  }, [phase, elapsed, limitSec]);
 
   useEffect(() => {
     if (phase !== "recording") return;
@@ -211,7 +224,9 @@ export default function Record() {
         {recording ? (
           <View style={styles.liveTag}>
             <View style={[styles.dot, { backgroundColor: colors.danger }]} />
-            <Text style={[type.label, { fontVariant: ["tabular-nums"] }]}>{formatDuration(elapsed) || "0:00"}</Text>
+            <Text style={[type.label, { fontVariant: ["tabular-nums"] }]}>{formatDuration(elapsed) || "0:00"}
+              {limitSec ? ` / ${formatDuration(limitSec)}` : ""}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -226,6 +241,13 @@ export default function Record() {
             placeholderTextColor={colors.textSubtle}
             style={styles.input}
           />
+          {usage?.limited ? (
+            <Text style={[type.label, { textAlign: "center", marginTop: space.lg, color: noneLeft ? colors.danger : colors.text }]}>
+              {noneLeft
+                ? `You've used all ${usage.max} meetings this month.`
+                : `${usage.max ? `${usage.max - usage.used} of ${usage.max} meetings left this month. ` : ""}Up to ${usage.maxMinutes} minutes each.`}
+            </Text>
+          ) : null}
           <Text style={[type.bodySm, { textAlign: "center", marginTop: space.md }]}>
             {isWeb ? "Keep this page open and the screen on while recording. " : ""}Put the phone in the middle of the table. You'll see what people say live, and the full report with speaker
             names comes after you stop.
@@ -265,7 +287,7 @@ export default function Record() {
         {recording ? (
           <Button label="Stop & save" variant="ink" onPress={finish} loading={phase === "saving"} style={{ flex: 1 }} />
         ) : (
-          <Button label="Start recording" onPress={start} loading={phase === "starting"} style={{ flex: 1 }} />
+          <Button label="Start recording" onPress={start} loading={phase === "starting"} disabled={noneLeft} style={{ flex: 1 }} />
         )}
       </View>
     </SafeAreaView>
