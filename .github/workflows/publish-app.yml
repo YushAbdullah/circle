@@ -52,7 +52,7 @@ jobs:
           MESSAGE: ${{ github.event.head_commit.message || 'Manual publish' }}
         run: |
           eas update --branch main --message "$MESSAGE" --non-interactive --json > update.json
-          export OWNER="$(eas whoami 2>/dev/null | head -n 1)"
+          export OWNER="$(eas whoami 2>/dev/null | head -n 1 | awk '{print $1}')"
           node -e '
             const u = JSON.parse(require("fs").readFileSync("update.json", "utf8"));
             const first = Array.isArray(u) ? u[0] : u;
