@@ -23,6 +23,8 @@ export interface User {
   salt: string;
   hash: string;
   createdAt: string;
+  /** When they agreed to the Terms, Privacy Policy (PDPA) and AI Use Policy. */
+  acceptedTermsAt?: string;
 }
 
 export interface PublicUser {
@@ -138,13 +140,19 @@ export class AuthError extends Error {
   }
 }
 
-export async function signUp(input: { email?: unknown; password?: unknown; name?: unknown; inviteCode?: unknown }, ip: string) {
+export async function signUp(
+  input: { email?: unknown; password?: unknown; name?: unknown; inviteCode?: unknown; acceptedTerms?: unknown },
+  ip: string,
+) {
   if (tooManyAttempts(ip)) throw new AuthError("Too many tries. Wait 15 minutes and try again.", 429);
   const email = typeof input.email === "string" ? normEmail(input.email) : "";
   const password = typeof input.password === "string" ? input.password : "";
   const name = typeof input.name === "string" ? input.name.trim().slice(0, 80) : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AuthError("Enter a valid email address.");
   if (password.length < 8) throw new AuthError("Password needs at least 8 characters.");
+  if (input.acceptedTerms !== true && input.acceptedTerms !== "true") {
+    throw new AuthError("Please agree to the Terms, Privacy Policy and AI Use Policy to create an account.");
+  }
   if (config.inviteCode && !same(String(input.inviteCode ?? "").trim(), config.inviteCode)) {
     throw new AuthError("That invite code is not right. Ask the person who shared CIRCLE with you.", 403);
   }
@@ -157,6 +165,7 @@ export async function signUp(input: { email?: unknown; password?: unknown; name?
     salt,
     hash: hashPassword(password, salt),
     createdAt: new Date().toISOString(),
+    acceptedTermsAt: new Date().toISOString(),
   };
   await store.put(userKey(email), Buffer.from(JSON.stringify(user)), "application/json");
   const pub = publicUser(user);

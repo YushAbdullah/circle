@@ -11,7 +11,10 @@ import { processMeeting } from "./pipeline.js";
 import { attachLive } from "./live.js";
 import { chat, speak, transcribeQuestion, translate } from "./assistant.js";
 import type { Meeting } from "./types.js";
-import { AuthError, logIn, OWNER_ID, requireUser, signUp } from "./auth.js";
+import { AuthError, logIn, OWNER_ID, requireUser, signUp, tokenFrom, userIdFromToken } from "./auth.js";
+import { ContactError, submitContact } from "./contact.js";
+import { startRetention } from "./retention.js";
+import { countMeeting, getUsage, maxSeconds, overLimit } from "./usage.js";
 
 const app = express();
 app.use(express.json());
@@ -52,6 +55,16 @@ const authRoute =
   };
 app.post("/auth/signup", authRoute(signUp));
 app.post("/auth/login", authRoute(logIn));
+
+// "Contact us" works without logging in (e.g. someone who can't log in or wants their data deleted).
+app.post("/contact", async (req: Request, res: Response) => {
+  try {
+    await submitContact(req.body ?? {}, req.ip ?? "unknown", userIdFromToken(tokenFrom(req)));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(e instanceof ContactError ? e.status : 500).json({ error: e instanceof Error ? e.message : "Could not send." });
+  }
+});
 
 app.use(requireUser);
 
@@ -101,6 +114,11 @@ function listItem(m: Meeting) {
   };
 }
 
+// How many meetings this person has left this month.
+app.get("/usage", async (req, res) => {
+  res.json(await getUsage(req.userId));
+});
+
 app.get("/meetings", (req, res) => {
   res.json(
     listMeetings()
@@ -114,6 +132,13 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     res.status(400).json({ error: "Attach the recording as the 'audio' field." });
     return;
   }
+  const limitError = await overLimit(req.userId);
+  if (limitError) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    res.status(403).json({ error: limitError });
+    return;
+  }
+  const maxSec = maxSeconds(req.userId);
   const id = crypto.randomUUID();
   const file = req.file;
   const ext = path.extname(file.originalname || "") || ".m4a";
@@ -121,7 +146,8 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
 
   const createdAt = new Date().toISOString();
   const title = String(req.body.title || "").trim() || `Meeting ${createdAt.slice(0, 16).replace("T", " ")}`;
-  const durationSec = req.body.durationSec ? Number(req.body.durationSec) : null;
+  let durationSec = req.body.durationSec ? Number(req.body.durationSec) : null;
+  if (maxSec && durationSec) durationSec = Math.min(durationSec, maxSec);
   const meeting: Meeting = {
     id,
     ownerId: req.userId,
@@ -138,6 +164,7 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     speakerNames: {},
   };
   await saveMeeting(meeting);
+  await countMeeting(req.userId);
 
   const numSpeakers = req.body.numSpeakers ? Number(req.body.numSpeakers) : undefined;
   const vocabulary = String(req.body.vocabulary ?? "")
@@ -150,7 +177,7 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
   void (async () => {
     let audioPath = file.path;
     try {
-      const compressed = await compressAudio(file.path);
+      const compressed = await compressAudio(file.path, maxSec);
       let finalExt = ext;
       let finalMime = mime;
       if (compressed) ({ path: audioPath, mime: finalMime, ext: finalExt } = compressed);
@@ -332,7 +359,7 @@ app.delete("/meetings/:id", async (req, res) => {
 
 // Open the port first so the host sees the server, even if storage is misconfigured.
 let storageError: string | null = null;
-loadMeetings().catch((e: unknown) => {
+loadMeetings().then(startRetention, (e: unknown) => {
   storageError = e instanceof Error ? e.message : String(e);
   console.error(`Storage problem: ${storageError}`);
 });

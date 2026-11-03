@@ -22,6 +22,9 @@ services:
       # Optional: only people with this code can create an account. Leave empty for anyone.
       - key: INVITE_CODE
         sync: false
+      # Your email for the "Contact us" form. Never shown to users.
+      - key: CONTACT_EMAIL
+        sync: false
       - key: CLAUDE_MODEL
         value: claude-haiku-5-5
       - key: ELEVENLABS_API_KEY

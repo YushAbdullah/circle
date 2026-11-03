@@ -1,7 +1,8 @@
 import type { IncomingMessage, Server } from "node:http";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import { config, demoMode } from "./config.js";
-import { tokenFrom, userIdFromToken } from "./auth.js";
+import { OWNER_ID, tokenFrom, userIdFromToken } from "./auth.js";
+import { maxSeconds } from "./usage.js";
 import { demoTranscript } from "./demo.js";
 
 /**
@@ -29,9 +30,10 @@ export type LiveMessage =
 
 const REALTIME_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime";
 
-function authorized(req: IncomingMessage): boolean {
-  if (!config.appToken && !config.authSecret) return true;
-  return !!userIdFromToken(tokenFrom(req));
+/** The signed-in account, or null when the log-in is missing or wrong. */
+function accountFor(req: IncomingMessage): string | null {
+  if (!config.appToken && !config.authSecret) return OWNER_ID;
+  return userIdFromToken(tokenFrom(req));
 }
 
 export function attachLive(server: Server): void {
@@ -40,11 +42,18 @@ export function attachLive(server: Server): void {
   server.on("upgrade", (req, socket, head) => {
     const path = new URL(req.url ?? "/", "http://x").pathname;
     if (path !== "/live") return socket.destroy();
-    if (!authorized(req)) {
+    const uid = accountFor(req);
+    if (!uid) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
+      // Stop live captions a minute after the account's time limit.
+      const max = maxSeconds(uid);
+      if (max) {
+        const timer = setTimeout(() => ws.close(), (max + 60) * 1000);
+        ws.on("close", () => clearTimeout(timer));
+      }
       if (demoMode()) runDemo(ws);
       else relay(ws);
     });
