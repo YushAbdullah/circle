@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, demoMode: demoMode(), transcriptOnly: transcriptOnly(), storage: store.kind });
+  res.json({ ok: true, demoMode: demoMode(), transcriptOnly: transcriptOnly(), storage: store.kind, storageError });
 });
 
 // Every other route needs the shared app token (when one is configured).
@@ -183,7 +183,12 @@ app.delete("/meetings/:id", async (req, res) => {
   res.status(204).end();
 });
 
-await loadMeetings();
+// Open the port first so the host sees the server, even if storage is misconfigured.
+let storageError: string | null = null;
+loadMeetings().catch((e: unknown) => {
+  storageError = e instanceof Error ? e.message : String(e);
+  console.error(`Storage problem: ${storageError}`);
+});
 const server = app.listen(config.port, "0.0.0.0", () => {
   const mode = demoMode() ? " (demo mode: no ElevenLabs key)" : transcriptOnly() ? " (transcripts only: no Anthropic key)" : "";
   console.log(`CIRCLE server on http://localhost:${config.port}${mode}, storage: ${store.kind}`);

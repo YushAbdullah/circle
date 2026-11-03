@@ -14,7 +14,7 @@ export const config = {
     .map((t) => t.trim())
     .filter(Boolean),
   // Optional cloud storage (free tier works). Without these, files go in DATA_DIR.
-  supabaseUrl: process.env.SUPABASE_URL ?? "",
+  supabaseUrl: normalizeSupabaseUrl(process.env.SUPABASE_URL ?? ""),
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY ?? "",
   supabaseBucket: process.env.SUPABASE_BUCKET ?? "circle",
   anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
@@ -31,3 +31,20 @@ export const config = {
 export const demoMode = () => !config.elevenLabsKey;
 /** Real transcripts but no Claude key: transcript only, no AI report. */
 export const transcriptOnly = () => !!config.elevenLabsKey && !config.anthropicKey;
+
+/**
+ * Accept the Supabase address in the forms people tend to paste: the project URL,
+ * an API URL with a path (…/rest/v1/), or the dashboard link (…/dashboard/project/<ref>).
+ */
+export function normalizeSupabaseUrl(raw: string): string {
+  const v = raw.trim();
+  if (!v) return "";
+  const ref = v.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i)?.[1];
+  if (ref) return `https://${ref}.supabase.co`;
+  if (/^[a-z0-9]{15,}$/i.test(v)) return `https://${v}.supabase.co`;
+  try {
+    return new URL(v.includes("://") ? v : `https://${v}`).origin;
+  } catch {
+    return v;
+  }
+}
