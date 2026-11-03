@@ -58,7 +58,11 @@ export async function summarize(
     (vocab.length ? `Vocabulary: ${vocab.join(", ")}\n\n` : "") +
     `Transcript (detected language: ${transcript.languageCode ?? "unknown"}):\n\n${formatTranscript(transcript, opts.speakerNames)}`;
 
-  const parsed = config.anthropicKey ? await withClaude(userText) : await withGemini(userText);
+  const parsed = config.anthropicKey
+    ? await withClaude(userText)
+    : config.groqKey
+      ? await withGroq(userText)
+      : await withGemini(userText);
 
   const cleaned = transcript.utterances.map((u) => ({ ...u }));
   for (const c of parsed.corrections) {
@@ -87,6 +91,52 @@ async function withClaude(userText: string): Promise<z.infer<typeof ReportSchema
   if (msg.stop_reason === "max_tokens") throw new Error("The meeting is too long to summarise in one pass.");
   if (!msg.parsed_output) throw new Error("The AI returned a report in an unexpected format.");
   return msg.parsed_output;
+}
+
+/** Groq's free tier (OpenAI-compatible API, very fast). The schema goes in the prompt; JSON mode keeps the reply parseable. */
+async function withGroq(userText: string): Promise<z.infer<typeof ReportSchema>> {
+  const { $schema: _s, ...schema } = z.toJSONSchema(ReportSchema) as Record<string, unknown>;
+  let res: Response;
+  try {
+    res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.groqKey}` },
+      body: JSON.stringify({
+        model: config.groqModel,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${SYSTEM}\n\nReply with one JSON object only, matching this JSON schema:\n${JSON.stringify(schema)}`,
+          },
+          { role: "user", content: userText },
+        ],
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+  } catch (e) {
+    if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError"))
+      throw new Error("Groq took too long to answer. Tap Try again in a minute.");
+    throw e;
+  }
+  if (!res.ok) throw new Error(`Groq failed (${res.status}): ${(await res.text()).slice(0, 500)}`);
+  const data = (await res.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
+  const choice = data.choices?.[0];
+  if (choice?.finish_reason === "length") throw new Error("The meeting is too long to summarise in one pass.");
+  const result = ReportSchema.safeParse(withDefaults(safeJson(choice?.message?.content ?? "")));
+  if (!result.success) throw new Error("The AI returned a report in an unexpected format. Tap Try again.");
+  return result.data;
+}
+
+/** Fill in empty lists a model left out, so a nearly-right reply still parses. */
+function withDefaults(v: unknown): unknown {
+  if (!v || typeof v !== "object") return v;
+  const o = v as Record<string, unknown>;
+  for (const k of ["languages", "keyPoints", "decisions", "actionItems", "speakerNames", "glossary", "corrections"])
+    if (!Array.isArray(o[k])) o[k] = [];
+  for (const k of ["title", "summary"]) if (typeof o[k] !== "string") o[k] = "";
+  return o;
 }
 
 /** Google Gemini's free tier, via its REST API with a JSON schema for the reply. */
@@ -154,7 +204,7 @@ function transcriptOnlyReport(transcript: Transcript): Report {
   return {
     title: "",
     languages: [],
-    summary: "The transcript is ready. Add a free GEMINI_API_KEY (or an ANTHROPIC_API_KEY) on the server to get the AI summary, decisions and action items.",
+    summary: "The transcript is ready. Add a free GROQ_API_KEY or GEMINI_API_KEY (or an ANTHROPIC_API_KEY) on the server to get the AI summary, decisions and action items.",
     keyPoints: [],
     decisions: [],
     actionItems: [],

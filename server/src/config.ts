@@ -22,6 +22,9 @@ export const config = {
   // Free alternative for the report: Google Gemini (key from aistudio.google.com/apikey).
   geminiKey: process.env.GEMINI_API_KEY ?? "",
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-flash-latest",
+  // Fastest free option for the report: Groq (key from console.groq.com/keys).
+  groqKey: process.env.GROQ_API_KEY ?? "",
+  groqModel: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
   // Comma-separated words the STT engine should listen for (names, slang, company terms).
   keyterms: (process.env.KEYTERMS ?? "")
     .split(",")
@@ -32,8 +35,9 @@ export const config = {
 /** Demo mode runs the whole flow without paid APIs, using a sample Manglish meeting. */
 /** Demo mode: no transcription key, so the sample Manglish meeting is used throughout. */
 export const demoMode = () => !config.elevenLabsKey;
-/** Real transcripts but no AI key (Claude or Gemini): transcript only, no AI report. */
-export const transcriptOnly = () => !!config.elevenLabsKey && !config.anthropicKey && !config.geminiKey;
+/** Real transcripts but no AI key (Claude, Groq or Gemini): transcript only, no AI report. */
+export const transcriptOnly = () =>
+  !!config.elevenLabsKey && !config.anthropicKey && !config.groqKey && !config.geminiKey;
 
 /**
  * Accept the Supabase address in the forms people tend to paste: the project URL,

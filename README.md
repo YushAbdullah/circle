@@ -44,7 +44,7 @@ Everything runs online on free plans, and every step works in your iPhone's brow
 **2. Server (Render).** Sign up at [render.com](https://render.com) with GitHub, then open [this deploy link](https://render.com/deploy?repo=https://github.com/YushAbdullah/circle). Allow Render to see the `circle` repo if asked. Fill in:
 - `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` from step 1
 - `ELEVENLABS_API_KEY` for transcripts (leave empty to try demo mode first)
-- `GEMINI_API_KEY` (free) or `ANTHROPIC_API_KEY` for the AI report
+- For the AI report, one of: `GROQ_API_KEY` (free and fastest, from [console.groq.com/keys](https://console.groq.com/keys)), `GEMINI_API_KEY` (free) or `ANTHROPIC_API_KEY` (paid, best with Manglish). If several are set, Claude is used first, then Groq, then Gemini.
 
 Tap **Apply**. When it says *Live*, copy the service address (`https://circle-server-….onrender.com`). Under **Environment**, copy the generated `APP_TOKEN`.
 

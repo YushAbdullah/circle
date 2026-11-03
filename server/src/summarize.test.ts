@@ -23,3 +23,21 @@ test("Gemini report is requested with a JSON schema and corrections are applied"
   assert.equal(r.cleanedUtterances[0].text, "Jom tapau.");
   assert.equal(r.glossary[0].term, "tapau");
 });
+
+test("Groq is preferred over Gemini and its JSON reply is parsed", async () => {
+  process.env.GROQ_API_KEY = "q";
+  const { config } = await import("./config.js");
+  config.groqKey = "q";
+  const { summarize } = await import("./summarize.js");
+  let url = "";
+  globalThis.fetch = (async (u: string) => {
+    url = u;
+    const report = { title: "T", summary: "S", corrections: [{ index: 0, text: "Boleh lah." }] };
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(report) }, finish_reason: "stop" }] }));
+  }) as typeof fetch;
+  const r = await summarize({ languageCode: "ms", utterances: [{ speaker: "speaker_0", start: 0, end: 1, text: "Bole la." }] } as any);
+  assert.match(url, /api\.groq\.com/);
+  assert.equal(r.cleanedUtterances[0].text, "Boleh lah.");
+  assert.deepEqual(r.decisions, []);
+  config.groqKey = "";
+});
