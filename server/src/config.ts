@@ -13,6 +13,10 @@ export const config = {
     .split(",")
     .map((t) => t.trim())
     .filter(Boolean),
+  // Optional cloud storage (free tier works). Without these, files go in DATA_DIR.
+  supabaseUrl: process.env.SUPABASE_URL ?? "",
+  supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY ?? "",
+  supabaseBucket: process.env.SUPABASE_BUCKET ?? "circle",
   anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
   claudeModel: process.env.CLAUDE_MODEL ?? "claude-opus-5-5",
   // Comma-separated words the STT engine should listen for (names, slang, company terms).

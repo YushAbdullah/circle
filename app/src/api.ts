@@ -53,12 +53,14 @@ export interface Settings {
 }
 
 const KEY = "circle.settings";
-const DEFAULTS: Settings = { serverUrl: "", token: "", vocabulary: "" };
+// The publish workflow can bake in the server address (EXPO_PUBLIC_SERVER_URL).
+const DEFAULTS: Settings = { serverUrl: process.env.EXPO_PUBLIC_SERVER_URL ?? "", token: "", vocabulary: "" };
 
 export async function loadSettings(): Promise<Settings> {
   try {
     const raw = await store.get(KEY);
-    return raw ? { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) } : DEFAULTS;
+    const saved = raw ? (JSON.parse(raw) as Partial<Settings>) : {};
+    return { ...DEFAULTS, ...saved, serverUrl: saved.serverUrl || DEFAULTS.serverUrl };
   } catch {
     return DEFAULTS;
   }

@@ -1,0 +1,63 @@
+# Publishes the phone app to Expo on every push to main, so it opens in Expo Go
+# without a computer. Needs the EXPO_TOKEN secret (expo.dev > Account settings >
+# Access tokens). Optional repository variable CIRCLE_SERVER_URL pre-fills the
+# server address in the app.
+name: Publish app to Expo Go
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/publish-app.yml"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Check Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Add the EXPO_TOKEN secret in GitHub: Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Link Expo project
+        run: |
+          eas init --force --non-interactive
+          eas update:configure --platform all --non-interactive || true
+
+      - name: Publish update
+        env:
+          EXPO_PUBLIC_SERVER_URL: ${{ vars.CIRCLE_SERVER_URL }}
+          MESSAGE: ${{ github.event.head_commit.message || 'Manual publish' }}
+        run: |
+          eas update --branch main --message "$MESSAGE" --non-interactive --json > update.json
+          export OWNER="$(eas whoami 2>/dev/null | head -n 1)"
+          node -e '
+            const u = JSON.parse(require("fs").readFileSync("update.json", "utf8"));
+            const first = Array.isArray(u) ? u[0] : u;
+            const link = `https://expo.dev/accounts/${process.env.OWNER}/projects/circle/updates/${first.group}`;
+            const s = `### CIRCLE app published\n\nOn your iPhone: open Expo Go, sign in with your Expo account, then open this link and tap "Open with Expo Go":\n\n${link}\n`;
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, s);
+            console.log(link);
+          '

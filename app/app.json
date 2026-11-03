@@ -35,6 +35,9 @@
       "expo-secure-store",
       "expo-font"
     ],
-    "scheme": "circle"
+    "scheme": "circle",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    }
   }
 }

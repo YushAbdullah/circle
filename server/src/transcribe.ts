@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { config, demoMode } from "./config.js";
 import type { Transcript, Utterance } from "./types.js";
 import { demoTranscript } from "./demo.js";
@@ -23,7 +22,7 @@ interface ScribeResponse {
  * which copes with Malay/English code-switching better than forcing one language.
  */
 export async function transcribe(
-  filePath: string,
+  bytes: Buffer,
   mime: string,
   opts: { numSpeakers?: number; extraKeyterms?: string[] } = {},
 ): Promise<Transcript> {
@@ -38,8 +37,7 @@ export async function transcribe(
   const keyterms = [...config.keyterms, ...(opts.extraKeyterms ?? [])].slice(0, 1000);
   for (const term of keyterms) form.append("keyterms", term);
 
-  const bytes = await fs.promises.readFile(filePath);
-  form.append("file", new Blob([bytes], { type: mime }), "audio");
+  form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), "audio");
 
   const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
     method: "POST",

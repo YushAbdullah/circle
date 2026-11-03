@@ -4,8 +4,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { config, demoMode } from "./config.js";
-import { deleteMeeting, getMeeting, listMeetings, saveMeeting, updateMeeting } from "./db.js";
-import { audioPath, removeAudio, storeAudio, uploadTmpDir } from "./storage.js";
+import { deleteMeeting, getMeeting, listMeetings, loadMeetings, saveMeeting, updateMeeting } from "./db.js";
+import { store, uploadTmpDir } from "./storage.js";
+import { compressAudio } from "./media.js";
 import { processMeeting } from "./pipeline.js";
 import { attachLive } from "./live.js";
 import type { Meeting } from "./types.js";
@@ -81,9 +82,24 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     return;
   }
   const id = crypto.randomUUID();
-  const ext = path.extname(req.file.originalname || "") || ".m4a";
-  const audioFile = `${id}${ext}`;
-  await storeAudio(req.file.path, audioFile);
+  let ext = path.extname(req.file.originalname || "") || ".m4a";
+  let mime = guessMime(req.file.mimetype, ext);
+  let audioPath = req.file.path;
+  try {
+    // Shrink large recordings (e.g. WAV from live mode) before storing.
+    const compressed = await compressAudio(req.file.path);
+    if (compressed) ({ path: audioPath, mime, ext } = compressed);
+    const audioFile = `${id}${ext}`;
+    await store.put(`audio/${audioFile}`, await fs.promises.readFile(audioPath), mime);
+    res.locals.audioFile = audioFile;
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Could not save the recording." });
+    return;
+  } finally {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    if (audioPath !== req.file.path) await fs.promises.unlink(audioPath).catch(() => {});
+  }
+  const audioFile = res.locals.audioFile as string;
 
   const createdAt = new Date().toISOString();
   const title = String(req.body.title || "").trim() || `Meeting ${createdAt.slice(0, 16).replace("T", " ")}`;
@@ -96,13 +112,13 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
     status: "uploaded",
     error: null,
     audioFile,
-    audioMime: guessMime(req.file.mimetype, ext),
+    audioMime: mime,
     transcript: null,
     report: null,
     liveText: typeof req.body.liveText === "string" && req.body.liveText.trim() ? req.body.liveText.trim() : null,
     speakerNames: {},
   };
-  saveMeeting(meeting);
+  await saveMeeting(meeting);
 
   const numSpeakers = req.body.numSpeakers ? Number(req.body.numSpeakers) : undefined;
   const vocabulary = String(req.body.vocabulary ?? "")
@@ -123,17 +139,17 @@ app.get("/meetings/:id", (req, res) => {
   res.json(m);
 });
 
-app.get("/meetings/:id/audio", (req, res) => {
+app.get("/meetings/:id/audio", async (req, res) => {
   const m = getMeeting(req.params.id);
-  if (!m || !fs.existsSync(audioPath(m.audioFile))) {
+  if (!m) {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.type(m.audioMime).sendFile(audioPath(m.audioFile));
+  await store.stream(`audio/${m.audioFile}`, m.audioMime, req, res);
 });
 
 // Rename the meeting or its speakers, e.g. { speakerNames: { speaker_0: "Yusri" } }
-app.patch("/meetings/:id", (req, res) => {
+app.patch("/meetings/:id", async (req, res) => {
   const m = getMeeting(req.params.id);
   if (!m) {
     res.status(404).json({ error: "Not found" });
@@ -144,7 +160,7 @@ app.patch("/meetings/:id", (req, res) => {
   if (req.body.speakerNames && typeof req.body.speakerNames === "object") {
     patch.speakerNames = { ...m.speakerNames, ...req.body.speakerNames };
   }
-  res.json(updateMeeting(m.id, patch));
+  res.json(await updateMeeting(m.id, patch));
 });
 
 // Re-run the AI report (e.g. after renaming speakers). Keeps the existing transcript.
@@ -161,13 +177,15 @@ app.post("/meetings/:id/reprocess", (req, res) => {
 app.delete("/meetings/:id", async (req, res) => {
   const m = getMeeting(req.params.id);
   if (m) {
-    await removeAudio(m.audioFile);
-    deleteMeeting(m.id);
+    await store.remove(`audio/${m.audioFile}`);
+    await deleteMeeting(m.id);
   }
   res.status(204).end();
 });
 
+await loadMeetings();
 const server = app.listen(config.port, "0.0.0.0", () => {
-  console.log(`CIRCLE server on http://localhost:${config.port}${demoMode() ? " (demo mode: no API keys set)" : ""}`);
+  const mode = demoMode() ? " (demo mode: no API keys set)" : "";
+  console.log(`CIRCLE server on http://localhost:${config.port}${mode}, storage: ${store.kind}`);
 });
 attachLive(server);
