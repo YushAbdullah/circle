@@ -161,6 +161,11 @@ export default function MeetingScreen() {
             <Card>
               <SectionTitle>Summary</SectionTitle>
               <Text style={type.body}>{report.summary}</Text>
+              {report.summary.startsWith("The transcript is ready. Add an Anthropic") ? (
+                <View style={{ marginTop: space.md }}>
+                  <Button label="Write AI report" variant="ink" onPress={async () => { await api.reprocess(m.id); load(); }} />
+                </View>
+              ) : null}
             </Card>
             {report.actionItems.length ? (
               <Card>
