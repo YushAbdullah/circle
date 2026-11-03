@@ -13,6 +13,15 @@ services:
         value: "22"
       - key: APP_TOKEN
         generateValue: true
+      # Signs everyone's log-ins. Generated once by Render; keep it secret.
+      - key: AUTH_SECRET
+        generateValue: true
+      # Your own email: logging in with it shows the meetings you made before accounts existed.
+      - key: OWNER_EMAIL
+        sync: false
+      # Optional: only people with this code can create an account. Leave empty for anyone.
+      - key: INVITE_CODE
+        sync: false
       - key: CLAUDE_MODEL
         value: claude-haiku-5-5
       - key: ELEVENLABS_API_KEY
@@ -27,3 +36,23 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
+
+  # The web version people open in Safari (free static site).
+  - type: web
+    name: circle-web
+    runtime: static
+    rootDir: app
+    buildCommand: npm ci && npx expo export --platform web
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: EXPO_PUBLIC_SERVER_URL
+        fromService:
+          type: web
+          name: circle-server
+          property: host

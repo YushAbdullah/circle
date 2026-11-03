@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import { api, loadSettings, saveSettings, type Settings } from "../api";
+import { api, loadSettings, logOut, saveSettings, type Settings } from "../api";
+import { showAlert } from "../alert";
 import { Button, Card } from "../components/ui";
 import { colors, fonts, radius, space, type } from "../theme";
 
@@ -29,17 +30,26 @@ export default function SettingsScreen() {
       if (h.storage === "local") {
         notes.push("Warning: meetings are stored on the server's own disk. On free hosting they are deleted when it sleeps. Add SUPABASE_URL and SUPABASE_SERVICE_KEY to keep them.");
       }
-      Alert.alert("Connected", notes.join("\n\n"));
+      showAlert("Connected", notes.join("\n\n"));
       router.back();
     } catch (e) {
-      Alert.alert("Could not connect", (e as Error).message);
+      showAlert("Could not connect", (e as Error).message);
     } finally {
       setTesting(false);
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md }}>
+    <ScrollView contentContainerStyle={{ padding: space.md, gap: space.md, width: "100%", maxWidth: 560, alignSelf: "center" }}>
+      <Card>
+        <Text style={type.title}>Account</Text>
+        <Text style={[type.bodySm, { marginTop: space.xs, marginBottom: space.md }]}>
+          {s.account ? `Logged in as ${s.account.name} (${s.account.email})` : "Using the shared access token"}
+        </Text>
+        <Button label="Log out" variant="ghost" onPress={() => logOut()} />
+      </Card>
+      {/* The web version has its server address built in; the phone app can still change it. */}
+      {Platform.OS !== "web" ? (
       <Card>
         <Field
           label="Server address"
@@ -58,6 +68,7 @@ export default function SettingsScreen() {
           secureTextEntry
         />
       </Card>
+      ) : null}
       <Card>
         <Field
           label="Custom words"

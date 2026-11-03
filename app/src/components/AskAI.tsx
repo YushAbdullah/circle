@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { showAlert } from "../alert";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -87,9 +88,9 @@ export function AskAI({ meetingId }: { meetingId: string }) {
       try {
         const text = await api.transcribeQuestion(uri);
         if (text) await send(text);
-        else Alert.alert("Didn't catch that", "Try speaking a little closer to the phone.");
+        else showAlert("Didn't catch that", "Try speaking a little closer to the phone.");
       } catch (e) {
-        Alert.alert("Couldn't hear the question", (e as Error).message);
+        showAlert("Couldn't hear the question", (e as Error).message);
       } finally {
         setHearing(false);
       }
@@ -97,7 +98,7 @@ export function AskAI({ meetingId }: { meetingId: string }) {
     }
     const perm = await requestRecordingPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Microphone needed", "Allow microphone access in iPhone Settings to ask by voice.");
+      showAlert("Microphone needed", "Allow microphone access in iPhone Settings to ask by voice.");
       return;
     }
     stopSpeaking();

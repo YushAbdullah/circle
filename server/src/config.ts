@@ -4,6 +4,12 @@ export const config = {
   port: Number(process.env.PORT ?? 4000),
   // Shared secret the phone app sends as "Authorization: Bearer <token>".
   appToken: process.env.APP_TOKEN ?? "",
+  // Signs personal log-in tokens. Falls back to APP_TOKEN when not set.
+  authSecret: process.env.AUTH_SECRET ?? "",
+  // Logging in with this email opens the owner's account (the meetings made with APP_TOKEN).
+  ownerEmail: process.env.OWNER_EMAIL ?? "",
+  // Optional: people need this code to create an account (keeps costs under control).
+  inviteCode: (process.env.INVITE_CODE ?? "").trim(),
   dataDir: path.resolve(process.env.DATA_DIR ?? "./data"),
   elevenLabsKey: process.env.ELEVENLABS_API_KEY ?? "",
   sttModel: process.env.STT_MODEL ?? "scribe_v2",

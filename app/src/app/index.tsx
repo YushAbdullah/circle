@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { showAlert } from "../alert";
 import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
@@ -46,14 +47,14 @@ export default function Home() {
   const openActions = meetings.reduce((t, m) => t + (m.actionCount ?? 0), 0);
 
   const askDelete = (item: MeetingListItem) =>
-    Alert.alert(item.title, "Delete this meeting?", [
+    showAlert(item.title, "Delete this meeting?", [
       ...(item.audioDeleted
         ? []
         : [
             {
               text: "Delete recording only",
               onPress: async () => {
-                await api.deleteAudio(item.id).catch((e) => Alert.alert("Couldn't delete", (e as Error).message));
+                await api.deleteAudio(item.id).catch((e) => showAlert("Couldn't delete", (e as Error).message));
                 load(true);
               },
             },
@@ -62,7 +63,7 @@ export default function Home() {
         text: "Delete whole meeting",
         style: "destructive" as const,
         onPress: async () => {
-          await api.remove(item.id).catch((e) => Alert.alert("Couldn't delete", (e as Error).message));
+          await api.remove(item.id).catch((e) => showAlert("Couldn't delete", (e as Error).message));
           load(true);
         },
       },
@@ -78,7 +79,7 @@ export default function Home() {
       await api.upload({ uri: f.uri, name: f.name, mimeType: f.mimeType ?? "audio/mp4" }, { title: f.name.replace(/\.[^.]+$/, "") });
       await load(true);
     } catch (e) {
-      Alert.alert("Upload failed", (e as Error).message);
+      showAlert("Upload failed", (e as Error).message);
     } finally {
       setUploading(false);
     }
