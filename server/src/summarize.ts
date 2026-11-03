@@ -91,19 +91,42 @@ async function withClaude(userText: string): Promise<z.infer<typeof ReportSchema
 
 /** Google Gemini's free tier, via its REST API with a JSON schema for the reply. */
 async function withGemini(userText: string): Promise<z.infer<typeof ReportSchema>> {
+  // If the main model is busy or slow (common on the free tier), try the lighter one.
+  const models = [...new Set([config.geminiModel, "gemini-flash-lite-latest"])];
+  let lastError: unknown;
+  for (const model of models) {
+    try {
+      return await callGemini(model, userText);
+    } catch (e) {
+      lastError = e;
+      console.error(`Gemini ${model}: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+  throw lastError;
+}
+
+async function callGemini(model: string, userText: string): Promise<z.infer<typeof ReportSchema>> {
   const { $schema: _s, ...schema } = z.toJSONSchema(ReportSchema) as Record<string, unknown>;
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": config.geminiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
-        contents: [{ role: "user", parts: [{ text: userText }] }],
-        generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema },
-      }),
-    },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": config.geminiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents: [{ role: "user", parts: [{ text: userText }] }],
+          generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema },
+        }),
+        signal: AbortSignal.timeout(120_000),
+      },
+    );
+  } catch (e) {
+    if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError"))
+      throw new Error("Gemini took too long to answer. Tap Try again in a minute.");
+    throw e;
+  }
   if (!res.ok) throw new Error(`Gemini failed (${res.status}): ${(await res.text()).slice(0, 500)}`);
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
