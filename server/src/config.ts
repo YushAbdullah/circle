@@ -27,4 +27,7 @@ export const config = {
 };
 
 /** Demo mode runs the whole flow without paid APIs, using a sample Manglish meeting. */
-export const demoMode = () => !config.elevenLabsKey || !config.anthropicKey;
+/** Demo mode: no transcription key, so the sample Manglish meeting is used throughout. */
+export const demoMode = () => !config.elevenLabsKey;
+/** Real transcripts but no Claude key: transcript only, no AI report. */
+export const transcriptOnly = () => !!config.elevenLabsKey && !config.anthropicKey;

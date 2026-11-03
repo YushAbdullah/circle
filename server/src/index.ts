@@ -3,7 +3,7 @@ import multer from "multer";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { config, demoMode } from "./config.js";
+import { config, demoMode, transcriptOnly } from "./config.js";
 import { deleteMeeting, getMeeting, listMeetings, loadMeetings, saveMeeting, updateMeeting } from "./db.js";
 import { store, uploadTmpDir } from "./storage.js";
 import { compressAudio } from "./media.js";
@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, demoMode: demoMode() });
+  res.json({ ok: true, demoMode: demoMode(), transcriptOnly: transcriptOnly(), storage: store.kind });
 });
 
 // Every other route needs the shared app token (when one is configured).
@@ -185,7 +185,7 @@ app.delete("/meetings/:id", async (req, res) => {
 
 await loadMeetings();
 const server = app.listen(config.port, "0.0.0.0", () => {
-  const mode = demoMode() ? " (demo mode: no API keys set)" : "";
+  const mode = demoMode() ? " (demo mode: no ElevenLabs key)" : transcriptOnly() ? " (transcripts only: no Anthropic key)" : "";
   console.log(`CIRCLE server on http://localhost:${config.port}${mode}, storage: ${store.kind}`);
 });
 attachLive(server);

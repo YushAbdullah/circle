@@ -19,10 +19,17 @@ export default function SettingsScreen() {
     try {
       const h = await api.health();
       await api.list(); // also checks the access token
-      Alert.alert(
-        "Connected",
-        h.demoMode ? "Server is in demo mode (no API keys), so every recording returns a sample report." : "Server is ready.",
-      );
+      const notes = [
+        h.demoMode
+          ? "Demo mode: add ELEVENLABS_API_KEY on the server for real transcription. Every recording returns a sample for now."
+          : h.transcriptOnly
+            ? "Real transcripts are on. Add ANTHROPIC_API_KEY on the server to also get AI reports."
+            : "Real transcription and AI reports are on.",
+      ];
+      if (h.storage === "local") {
+        notes.push("Warning: meetings are stored on the server's own disk. On free hosting they are deleted when it sleeps. Add SUPABASE_URL and SUPABASE_SERVICE_KEY to keep them.");
+      }
+      Alert.alert("Connected", notes.join("\n\n"));
       router.back();
     } catch (e) {
       Alert.alert("Could not connect", (e as Error).message);

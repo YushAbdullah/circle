@@ -99,7 +99,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  health: () => request<{ ok: boolean; demoMode: boolean }>("/health"),
+  health: () =>
+    request<{ ok: boolean; demoMode: boolean; transcriptOnly?: boolean; storage?: "local" | "supabase" }>("/health"),
   list: () => request<MeetingListItem[]>("/meetings"),
   get: (id: string) => request<Meeting>(`/meetings/${id}`),
   rename: (id: string, patch: { title?: string; speakerNames?: Record<string, string> }) =>

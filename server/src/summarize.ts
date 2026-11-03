@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { config, demoMode } from "./config.js";
+import { config, demoMode, transcriptOnly } from "./config.js";
 import { demoReport } from "./demo.js";
 import type { Report, Transcript } from "./types.js";
 
@@ -52,6 +52,7 @@ export async function summarize(
   opts: { vocabulary?: string[]; speakerNames?: Record<string, string> } = {},
 ): Promise<Report> {
   if (demoMode()) return demoReport;
+  if (transcriptOnly()) return transcriptOnlyReport(transcript);
   client ??= new Anthropic({ apiKey: config.anthropicKey });
 
   const vocab = [...config.keyterms, ...(opts.vocabulary ?? [])];
@@ -84,4 +85,19 @@ export async function summarize(
   }
   const { corrections: _unused, ...rest } = parsed;
   return { ...rest, cleanedUtterances: cleaned };
+}
+
+/** Used when no Anthropic key is set: keeps the real transcript, explains the missing report. */
+function transcriptOnlyReport(transcript: Transcript): Report {
+  return {
+    title: "",
+    languages: [],
+    summary: "The transcript is ready. Add an Anthropic API key on the server to get the AI summary, decisions and action items.",
+    keyPoints: [],
+    decisions: [],
+    actionItems: [],
+    speakerNames: [],
+    glossary: [],
+    cleanedUtterances: transcript.utterances,
+  };
 }
