@@ -27,8 +27,21 @@ export interface Report {
   decisions: string[];
   actionItems: { owner: string; task: string; due: string }[];
   glossary: { term: string; meaning: string }[];
+  recommendations?: string[];
   cleanedUtterances: Utterance[];
 }
+
+export interface Translation {
+  language: string;
+  summary: string;
+  keyPoints: string[];
+  decisions: string[];
+  recommendations: string[];
+  actionItems: string[];
+  utterances: string[];
+}
+
+export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export interface MeetingListItem {
   id: string;
@@ -38,9 +51,13 @@ export interface MeetingListItem {
   status: MeetingStatus;
   error: string | null;
   summary: string | null;
+  languages?: string[];
+  actionCount?: number;
+  audioDeleted?: boolean;
 }
 
-export interface Meeting extends Omit<MeetingListItem, "summary"> {
+export interface Meeting extends Omit<MeetingListItem, "summary" | "languages" | "actionCount"> {
+  translations?: Record<string, Translation>;
   transcript: { languageCode: string | null; utterances: Utterance[] } | null;
   report: Report | null;
   liveText: string | null;
@@ -111,6 +128,47 @@ export const api = {
     }),
   reprocess: (id: string) => request<{ ok: boolean }>(`/meetings/${id}/reprocess`, { method: "POST" }),
   remove: (id: string) => request<void>(`/meetings/${id}`, { method: "DELETE" }),
+  deleteAudio: (id: string) => request<Meeting>(`/meetings/${id}/audio`, { method: "DELETE" }),
+  chat: (id: string, messages: ChatMessage[]) =>
+    request<{ reply: string }>(`/meetings/${id}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    }),
+  translate: (id: string, language: string, refresh = false) =>
+    request<Translation>(`/meetings/${id}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language, refresh }),
+    }),
+
+  /** Send a short spoken question; returns what was said. */
+  async transcribeQuestion(uri: string) {
+    const s = await loadSettings();
+    if (!s.serverUrl) throw new NotConfiguredError();
+    const res = await new FsFile(uri).upload(`${s.serverUrl}/transcribe`, {
+      uploadType: UploadType.MULTIPART,
+      fieldName: "audio",
+      mimeType: "audio/mp4",
+      headers: s.token ? { Authorization: `Bearer ${s.token}` } : {},
+    });
+    let body: { text?: string; error?: string } = {};
+    try {
+      body = JSON.parse(res.body);
+    } catch {}
+    if (res.status === 401) throw new Error(UNAUTHORIZED);
+    if (res.status < 200 || res.status >= 300) throw new Error(body.error ?? `Server error ${res.status}`);
+    return body.text ?? "";
+  },
+
+  /** Audio source that reads `text` aloud. */
+  async speechSource(text: string) {
+    const s = await loadSettings();
+    return {
+      uri: `${s.serverUrl}/tts?text=${encodeURIComponent(text.slice(0, 2500))}`,
+      headers: s.token ? { Authorization: `Bearer ${s.token}` } : undefined,
+    };
+  },
 
   /**
    * Upload a recording with the native uploader (streams from disk, so long

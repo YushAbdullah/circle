@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import type { AudioSource } from "expo-audio";
-import { api, formatDuration, statusLabel, type Meeting } from "../../api";
+import { api, formatDuration, statusLabel, type Meeting, type Translation } from "../../api";
+import { AskAI } from "../../components/AskAI";
 import { AudioBar, type AudioBarHandle } from "../../components/AudioBar";
 import { PromptModal } from "../../components/PromptModal";
 import { Button, Card, Empty, SectionTitle, StatusPill } from "../../components/ui";
-import { colors, radius, space, type } from "../../theme";
+import { colors, elevation, radius, space, type } from "../../theme";
 
 // Speaker accent dots: mint, ink, then derived greens/greys (decorative only, never text colour).
 const SPEAKER_DOTS = [colors.primary, colors.ink, colors.accent, "#9AA59C", "#B7E4C0", "#5F655F"];
 
-type Tab = "report" | "transcript";
+type Tab = "report" | "transcript" | "ask";
+const TAB_LABEL: Record<Tab, string> = { report: "Report", transcript: "Conversation", ask: "Ask AI" };
+const LANGS = [
+  { key: null, label: "Original" },
+  { key: "English", label: "English" },
+  { key: "Malay", label: "Bahasa Melayu" },
+] as const;
+const NO_AI_PREFIX = "The transcript is ready. Add ";
 
 export default function MeetingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,6 +29,26 @@ export default function MeetingScreen() {
   const [source, setSource] = useState<AudioSource | null>(null);
   const [renaming, setRenaming] = useState<{ kind: "title" } | { kind: "speaker"; speaker: string } | null>(null);
   const audioRef = useRef<AudioBarHandle>(null);
+  const [lang, setLang] = useState<string | null>(null);
+  const [translation, setTranslation] = useState<Translation | null>(null);
+  const [translating, setTranslating] = useState(false);
+
+  const chooseLanguage = async (language: string | null) => {
+    setLang(language);
+    if (!language || !m) return setTranslation(null);
+    const cached = m.translations?.[language];
+    if (cached) return setTranslation(cached);
+    setTranslating(true);
+    setTranslation(null);
+    try {
+      setTranslation(await api.translate(m.id, language));
+    } catch (e) {
+      setLang(null);
+      Alert.alert("Translation failed", (e as Error).message);
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -81,6 +109,9 @@ export default function MeetingScreen() {
       "DECISIONS",
       ...(report.decisions.length ? report.decisions.map((d) => `• ${d}`) : ["• None recorded"]),
       "",
+      "RECOMMENDATIONS",
+      ...(report.recommendations?.length ? report.recommendations.map((r) => `• ${r}`) : ["• None"]),
+      "",
       "ACTION ITEMS",
       ...(report.actionItems.length ? report.actionItems.map((a) => `• ${a.task} (${a.owner}, ${a.due})`) : ["• None"]),
       "",
@@ -91,24 +122,55 @@ export default function MeetingScreen() {
   };
 
   const confirmDelete = () =>
-    Alert.alert("Delete meeting?", "The recording, transcript and report will be deleted.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert("Delete", "What do you want to delete?", [
+      ...(m.audioDeleted
+        ? []
+        : [
+            {
+              text: "Recording only (keep report)",
+              onPress: async () => {
+                try {
+                  setM(await api.deleteAudio(m.id));
+                } catch (e) {
+                  Alert.alert("Couldn't delete", (e as Error).message);
+                }
+              },
+            },
+          ]),
       {
-        text: "Delete",
-        style: "destructive",
+        text: "Whole meeting",
+        style: "destructive" as const,
         onPress: async () => {
           await api.remove(m.id);
           router.back();
         },
       },
+      { text: "Cancel", style: "cancel" as const },
     ]);
+
+  const hasAiReport = !!report && !report.summary.startsWith(NO_AI_PREFIX);
+  const tr = lang ? translation : null;
+  const view = report
+    ? {
+        summary: tr?.summary ?? report.summary,
+        keyPoints: tr?.keyPoints.length ? tr.keyPoints : report.keyPoints,
+        decisions: tr?.decisions.length ? tr.decisions : report.decisions,
+        recommendations: tr?.recommendations.length ? tr.recommendations : report.recommendations ?? [],
+        actionItems: report.actionItems.map((a, i) => ({ ...a, task: tr?.actionItems[i] ?? a.task })),
+      }
+    : null;
+  const speakerCount = Object.keys(speakers).length;
 
   const processing = m.status !== "ready" && m.status !== "failed";
 
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ title: "" }} />
-      <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: space.xxl, gap: space.md }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
+      <ScrollView
+        contentContainerStyle={{ padding: space.md, paddingBottom: space.xxl, gap: space.md }}
+        keyboardShouldPersistTaps="handled"
+      >
         <Pressable onPress={() => setRenaming({ kind: "title" })} accessibilityHint="Rename meeting">
           <Text style={type.headingLg}>{m.title}</Text>
         </Pressable>
@@ -118,7 +180,19 @@ export default function MeetingScreen() {
           <StatusPill status={m.status} />
         </View>
 
-        {source ? <AudioBar ref={audioRef} source={source} fallbackDuration={m.durationSec} /> : null}
+        {report ? (
+          <View style={styles.stats}>
+            <Stat value={formatDuration(m.durationSec) || "–"} label="Length" />
+            <Stat value={String(speakerCount || "–")} label={speakerCount === 1 ? "Speaker" : "Speakers"} />
+            <Stat value={String(report.actionItems.length)} label="Actions" />
+          </View>
+        ) : null}
+
+        {m.audioDeleted ? (
+          <Text style={[type.caption, { paddingHorizontal: space.xs }]}>Recording deleted. The transcript and report are kept.</Text>
+        ) : source ? (
+          <AudioBar ref={audioRef} source={source} fallbackDuration={m.durationSec} />
+        ) : null}
 
         {processing ? (
           <Card style={{ backgroundColor: colors.surfaceTint, shadowOpacity: 0 }}>
@@ -146,31 +220,68 @@ export default function MeetingScreen() {
 
         {utterances.length ? (
           <View style={styles.tabs}>
-            {(["report", "transcript"] as Tab[]).map((t) => (
+            {(["report", "transcript", "ask"] as Tab[]).map((t) => (
               <Pressable key={t} onPress={() => setTab(t)} style={[styles.tab, tab === t && styles.tabActive]}>
-                <Text style={[type.label, { color: tab === t ? colors.text : colors.textMuted }]}>
-                  {t === "report" ? "Report" : "Conversation"}
-                </Text>
+                <Text style={[type.label, { color: tab === t ? colors.text : colors.textMuted }]}>{TAB_LABEL[t]}</Text>
               </Pressable>
             ))}
           </View>
         ) : null}
 
-        {tab === "report" && report ? (
+        {utterances.length && hasAiReport && tab !== "ask" ? (
+          <View style={styles.langRow}>
+            <Text style={type.caption}>Translate</Text>
+            {LANGS.map((l) => {
+              const active = lang === l.key;
+              return (
+                <Pressable
+                  key={l.label}
+                  onPress={() => chooseLanguage(l.key)}
+                  disabled={translating}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[type.caption, { color: active ? colors.onInk : colors.text }]}>{l.label}</Text>
+                </Pressable>
+              );
+            })}
+            {translating ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+          </View>
+        ) : null}
+
+        {tab === "report" && report && view ? (
           <>
             <Card>
               <SectionTitle>Summary</SectionTitle>
-              <Text style={type.body}>{report.summary}</Text>
-              {report.summary.startsWith("The transcript is ready. Add ") ? (
+              <Text style={type.body}>{view.summary}</Text>
+              {!hasAiReport ? (
                 <View style={{ marginTop: space.md }}>
                   <Button label="Write AI report" variant="ink" onPress={async () => { await api.reprocess(m.id); load(); }} />
                 </View>
               ) : null}
             </Card>
-            {report.actionItems.length ? (
+            {view.recommendations.length ? (
+              <View style={styles.recommend}>
+                <Text style={[type.title, { color: colors.onInk, marginBottom: space.sm }]}>✦  CIRCLE recommends</Text>
+                {view.recommendations.map((r, i) => (
+                  <View key={i} style={{ flexDirection: "row", gap: space.sm, marginBottom: space.sm }}>
+                    <Text style={[type.label, { color: colors.primary }]}>{i + 1}</Text>
+                    <Text style={[type.body, { color: "#E6EEE8", flex: 1 }]}>{r}</Text>
+                  </View>
+                ))}
+                <Pressable onPress={() => setTab("ask")} hitSlop={8}>
+                  <Text style={[type.label, { color: colors.primary }]}>Discuss with AI →</Text>
+                </Pressable>
+              </View>
+            ) : hasAiReport ? (
+              <Pressable onPress={() => setTab("ask")} style={styles.recommendCta}>
+                <Text style={type.title}>✦  Ask AI for recommendations</Text>
+                <Text style={type.caption}>Talk through next steps by voice or text</Text>
+              </Pressable>
+            ) : null}
+            {view.actionItems.length ? (
               <Card>
                 <SectionTitle>Action items</SectionTitle>
-                {report.actionItems.map((a, i) => (
+                {view.actionItems.map((a, i) => (
                   <View key={i} style={styles.action}>
                     <View style={styles.check} />
                     <View style={{ flex: 1 }}>
@@ -183,8 +294,8 @@ export default function MeetingScreen() {
                 ))}
               </Card>
             ) : null}
-            <ListCard title="Key points" items={report.keyPoints} />
-            <ListCard title="Decisions" items={report.decisions} empty="No decisions recorded." />
+            <ListCard title="Key points" items={view.keyPoints} />
+            <ListCard title="Decisions" items={view.decisions} empty="No decisions recorded." />
             {report.glossary.length ? (
               <Card style={{ backgroundColor: colors.surfaceTint, shadowOpacity: 0 }}>
                 <SectionTitle>Slang & dialect</SectionTitle>
@@ -197,16 +308,18 @@ export default function MeetingScreen() {
             ) : null}
             <View style={{ flexDirection: "row", gap: space.sm }}>
               <Button label="Share report" variant="ink" onPress={shareReport} style={{ flex: 1 }} />
-              <Button label="Delete" variant="ghost" onPress={confirmDelete} style={{ flex: 1 }} />
+              <Button label="Delete…" variant="ghost" onPress={confirmDelete} style={{ flex: 1 }} />
             </View>
           </>
         ) : null}
 
         {tab === "transcript" ? (
           <>
-            <Text style={type.caption}>Tap a line to play it. Tap a name to rename that speaker.</Text>
+            <Text style={type.caption}>
+              {m.audioDeleted ? "Tap a name to rename that speaker." : "Tap a line to play it. Tap a name to rename that speaker."}
+            </Text>
             {utterances.map((u, i) => (
-              <Pressable key={i} onPress={() => audioRef.current?.seekAndPlay(u.start)} style={styles.utterance}>
+              <Pressable key={i} onPress={() => !m.audioDeleted && audioRef.current?.seekAndPlay(u.start)} style={styles.utterance}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: 4 }}>
                   <View style={[styles.speakerDot, { backgroundColor: speakers[u.speaker]?.dot }]} />
                   <Pressable onPress={() => setRenaming({ kind: "speaker", speaker: u.speaker })} hitSlop={8}>
@@ -214,12 +327,26 @@ export default function MeetingScreen() {
                   </Pressable>
                   <Text style={type.caption}>{formatDuration(u.start)}</Text>
                 </View>
-                <Text style={[type.body, { color: colors.text }]}>{u.text}</Text>
+                {tr?.utterances[i] && tr.utterances[i] !== u.text ? (
+                  <>
+                    <Text style={[type.body, { color: colors.text }]}>{tr.utterances[i]}</Text>
+                    <Text style={[type.caption, { marginTop: 4 }]}>{u.text}</Text>
+                  </>
+                ) : (
+                  <Text style={[type.body, { color: colors.text }]}>{u.text}</Text>
+                )}
               </Pressable>
             ))}
           </>
         ) : null}
+        {/* Kept mounted so the chat survives switching tabs. */}
+        {utterances.length ? (
+          <View style={{ display: tab === "ask" ? "flex" : "none" }}>
+            <AskAI meetingId={m.id} />
+          </View>
+        ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <PromptModal
         visible={renaming !== null}
@@ -228,6 +355,15 @@ export default function MeetingScreen() {
         onCancel={() => setRenaming(null)}
         onSubmit={saveRename}
       />
+    </View>
+  );
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={type.headingMd}>{value}</Text>
+      <Text style={type.caption}>{label}</Text>
     </View>
   );
 }
@@ -259,4 +395,11 @@ const styles = StyleSheet.create({
   check: { width: 18, height: 18, marginTop: 3, borderRadius: 5, borderWidth: 1.5, borderColor: colors.accent },
   utterance: { backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md },
   speakerDot: { width: 10, height: 10, borderRadius: radius.full },
+  stats: { flexDirection: "row", gap: space.sm },
+  stat: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: space.md, ...elevation.e1 },
+  langRow: { flexDirection: "row", alignItems: "center", gap: space.sm, flexWrap: "wrap" },
+  chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.full, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  chipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  recommend: { backgroundColor: colors.ink, borderRadius: radius.lg, padding: space.lg, ...elevation.e2 },
+  recommendCta: { backgroundColor: colors.surfaceTint, borderRadius: radius.lg, padding: space.lg, gap: 4 },
 });

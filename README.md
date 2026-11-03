@@ -2,9 +2,11 @@
 
 Record a meeting on your phone. CIRCLE stores the recording, writes a transcript that shows who said what, and has AI write the report: summary, key points, decisions, action items, and a glossary of slang and dialect words. It handles Malay, English, Manglish and code-switching.
 
-| Home | Live captions | Report | Conversation |
+| Home | Live captions | Report | Ask AI |
 |---|---|---|---|
-| ![](docs/screenshots/home.png) | ![](docs/screenshots/live.png) | ![](docs/screenshots/report.png) | ![](docs/screenshots/conversation.png) |
+| ![](docs/screenshots/home.png) | ![](docs/screenshots/live.png) | ![](docs/screenshots/report.png) | ![](docs/screenshots/ask.png) |
+
+After a meeting you can translate the report and conversation (English or Bahasa Melayu), get AI recommendations, and talk the meeting through with **Ask AI** by voice or text; answers are read aloud with ElevenLabs. You can delete just the recording and keep the report.
 
 ## How it works
 
@@ -161,6 +163,11 @@ The installed app expects an `https://` server address (step 4); plain `http://`
 | PATCH | `/meetings/:id` | Rename the meeting or speakers: `{ "title": "...", "speakerNames": { "speaker_0": "Yusri" } }` |
 | POST | `/meetings/:id/reprocess` | Rerun the AI report |
 | DELETE | `/meetings/:id` | Delete the meeting and its recording |
+| DELETE | `/meetings/:id/audio` | Delete only the recording; keep transcript and report |
+| POST | `/meetings/:id/chat` | Ask AI about the meeting: `{ "messages": [{ "role": "user", "content": "..." }] }` |
+| POST | `/meetings/:id/translate` | Translate report and conversation: `{ "language": "English" }` (cached) |
+| POST | `/transcribe` | Short spoken question (`audio` field) to text |
+| GET | `/tts?text=...` | Read text aloud (MP3, ElevenLabs) |
 
 Every route except `/health` needs `Authorization: Bearer <APP_TOKEN>` when `APP_TOKEN` is set.
 

@@ -42,5 +42,10 @@ export const demoReport: Report = {
     { term: "Can or not?", meaning: "Is that possible? (Manglish)" },
     { term: "17hb", meaning: "the 17th (hb = haribulan, day of the month)" },
   ],
+  recommendations: [
+    "Set a fallback launch date now in case the payment fix slips past Friday.",
+    "Ask finance for the sandbox key today; it blocks UAT next Monday.",
+    "Book a 15-minute check-in on Thursday to confirm payments are on track.",
+  ],
   cleanedUtterances: demoTranscript.utterances,
 };

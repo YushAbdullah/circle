@@ -27,7 +27,7 @@ export async function processMeeting(id: string, opts: { numSpeakers?: number; v
     // Seed speaker names from the AI's guesses, keeping any the user already set.
     const speakerNames = { ...Object.fromEntries(report.speakerNames.map((s) => [s.speaker, s.name])), ...meeting.speakerNames };
     const title = meeting.title.startsWith("Meeting ") && report.title ? report.title : meeting.title;
-    await updateMeeting(id, { report, speakerNames, title, status: "ready" });
+    await updateMeeting(id, { report, speakerNames, title, status: "ready", translations: {} });
   } catch (err) {
     console.error(`Processing ${id} failed`, err);
     await updateMeeting(id, { status: "failed", error: err instanceof Error ? err.message : String(err) });

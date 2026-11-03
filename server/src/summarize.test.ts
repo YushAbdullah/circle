@@ -41,3 +41,22 @@ test("Groq is preferred over Gemini and its JSON reply is parsed", async () => {
   assert.deepEqual(r.decisions, []);
   config.groqKey = "";
 });
+
+test("translate maps utterances back by index and keeps untranslated ones", async () => {
+  const { config } = await import("./config.js");
+  config.groqKey = "q";
+  const { translate } = await import("./assistant.js");
+  globalThis.fetch = (async () => {
+    const t = { summary: "Ringkasan", keyPoints: ["A"], decisions: [], recommendations: ["B"], actionItems: [], utterances: [{ index: 1, text: "Dua" }] };
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(t) }, finish_reason: "stop" }] }));
+  }) as typeof fetch;
+  const m: any = {
+    id: "1", title: "T", createdAt: new Date().toISOString(), speakerNames: {}, transcript: null,
+    report: { summary: "S", keyPoints: ["a"], decisions: [], actionItems: [], recommendations: ["b"], glossary: [], languages: [], title: "", speakerNames: [],
+      cleanedUtterances: [{ speaker: "speaker_0", start: 0, end: 1, text: "One" }, { speaker: "speaker_0", start: 1, end: 2, text: "Two" }] },
+  };
+  const t = await translate(m, "Malay");
+  assert.deepEqual(t.utterances, ["One", "Dua"]);
+  assert.equal(t.summary, "Ringkasan");
+  config.groqKey = "";
+});

@@ -25,6 +25,9 @@ export const config = {
   // Fastest free option for the report: Groq (key from console.groq.com/keys).
   groqKey: process.env.GROQ_API_KEY ?? "",
   groqModel: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+  // Voice replies from the "Ask CIRCLE" assistant (ElevenLabs text-to-speech, same key as transcription).
+  ttsVoiceId: process.env.TTS_VOICE_ID ?? "JBFqnCBsd6RMkjVDRZzb",
+  ttsModel: process.env.TTS_MODEL ?? "eleven_flash_v2_5",
   // Comma-separated words the STT engine should listen for (names, slang, company terms).
   keyterms: (process.env.KEYTERMS ?? "")
     .split(",")

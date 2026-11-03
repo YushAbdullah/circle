@@ -9,6 +9,7 @@ import { store, uploadTmpDir } from "./storage.js";
 import { compressAudio } from "./media.js";
 import { processMeeting } from "./pipeline.js";
 import { attachLive } from "./live.js";
+import { chat, speak, transcribeQuestion, translate } from "./assistant.js";
 import type { Meeting } from "./types.js";
 
 const app = express();
@@ -69,6 +70,9 @@ function listItem(m: Meeting) {
     status: m.status,
     error: m.error,
     summary: m.report?.summary ?? null,
+    languages: m.report?.languages ?? [],
+    actionCount: m.report?.actionItems.length ?? 0,
+    audioDeleted: !!m.audioDeleted,
   };
 }
 
@@ -145,8 +149,112 @@ app.get("/meetings/:id/audio", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
+  if (m.audioDeleted) {
+    res.status(404).json({ error: "The recording was deleted." });
+    return;
+  }
   await store.stream(`audio/${m.audioFile}`, m.audioMime, req, res);
 });
+
+// Delete only the recording; keep the transcript and report.
+app.delete("/meetings/:id/audio", async (req, res) => {
+  const m = getMeeting(req.params.id);
+  if (!m) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await store.remove(`audio/${m.audioFile}`);
+  res.json(await updateMeeting(m.id, { audioDeleted: true }));
+});
+
+/** Run a handler and turn failures into a JSON error the app can show. */
+const safe =
+  (fn: (req: Request, res: Response) => Promise<void>) =>
+  async (req: Request, res: Response) => {
+    try {
+      await fn(req, res);
+    } catch (e) {
+      console.error(`${req.method} ${req.path} failed`, e);
+      if (!res.headersSent) res.status(502).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+// Ask CIRCLE: chat about a meeting. Body: { messages: [{ role: "user" | "assistant", content }] }
+app.post(
+  "/meetings/:id/chat",
+  safe(async (req, res) => {
+    const m = getMeeting(String(req.params.id));
+    if (!m) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    const clean = messages
+      .filter((x: { role?: string; content?: unknown }) => (x.role === "user" || x.role === "assistant") && typeof x.content === "string")
+      .map((x: { role: "user" | "assistant"; content: string }) => ({ role: x.role, content: x.content }));
+    if (!clean.length || clean[clean.length - 1].role !== "user") {
+      res.status(400).json({ error: "Send at least one user message." });
+      return;
+    }
+    res.json({ reply: await chat(m, clean) });
+  }),
+);
+
+// Spoken question -> text, so the app can send it to /chat.
+const questionUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+app.post(
+  "/transcribe",
+  questionUpload.single("audio"),
+  safe(async (req, res) => {
+    if (!req.file) {
+      res.status(400).json({ error: "Attach the question as the 'audio' field." });
+      return;
+    }
+    const ext = path.extname(req.file.originalname || "") || ".m4a";
+    res.json({ text: await transcribeQuestion(req.file.buffer, guessMime(req.file.mimetype, ext)) });
+  }),
+);
+
+// Read a reply aloud: GET /tts?text=... returns MP3.
+app.get(
+  "/tts",
+  safe(async (req, res) => {
+    const text = String(req.query.text ?? "").trim();
+    if (!text) {
+      res.status(400).json({ error: "Missing text." });
+      return;
+    }
+    const mp3 = await speak(text);
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Content-Length", String(mp3.length));
+    res.end(mp3);
+  }),
+);
+
+// Translate the report and conversation. Body: { language: "English" }. Cached per language.
+app.post(
+  "/meetings/:id/translate",
+  safe(async (req, res) => {
+    const m = getMeeting(String(req.params.id));
+    if (!m) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const language = String(req.body?.language ?? "").trim().slice(0, 40);
+    if (!language) {
+      res.status(400).json({ error: "Choose a language." });
+      return;
+    }
+    const cached = m.translations?.[language];
+    if (cached && !req.body?.refresh) {
+      res.json(cached);
+      return;
+    }
+    const t = await translate(m, language);
+    await updateMeeting(m.id, { translations: { ...(m.translations ?? {}), [language]: t } });
+    res.json(t);
+  }),
+);
 
 // Rename the meeting or its speakers, e.g. { speakerNames: { speaker_0: "Yusri" } }
 app.patch("/meetings/:id", async (req, res) => {
