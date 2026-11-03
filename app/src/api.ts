@@ -82,19 +82,33 @@ export interface Settings {
 
 const KEY = "circle.settings";
 // The publish workflow can bake in the server address (EXPO_PUBLIC_SERVER_URL).
-// Render may hand over just the host name (circle-server-xxxx.onrender.com), so add https:// when missing.
-const BUILT_IN_SERVER = (process.env.EXPO_PUBLIC_SERVER_URL ?? "").trim().replace(/\/+$/, "");
 const DEFAULTS: Settings = {
-  serverUrl: BUILT_IN_SERVER && !/^https?:\/\//i.test(BUILT_IN_SERVER) ? `https://${BUILT_IN_SERVER}` : BUILT_IN_SERVER,
+  serverUrl: builtInServer(process.env.EXPO_PUBLIC_SERVER_URL ?? ""),
   token: "",
   vocabulary: "",
 };
+
+/**
+ * Render's blueprint hands the web build only the server's service name
+ * (e.g. "circle-server-mzjz"), so turn that into its public address.
+ */
+function builtInServer(raw: string): string {
+  let v = raw.trim().replace(/\/+$/, "");
+  if (!v) return "";
+  if (!/^https?:\/\//i.test(v)) {
+    if (!v.includes(".") && !v.includes(":")) v = `${v}.onrender.com`;
+    v = `https://${v}`;
+  }
+  return v;
+}
 
 export async function loadSettings(): Promise<Settings> {
   try {
     const raw = await store.get(KEY);
     const saved = raw ? (JSON.parse(raw) as Partial<Settings>) : {};
-    return { ...DEFAULTS, ...saved, serverUrl: saved.serverUrl || DEFAULTS.serverUrl };
+    // The web version always talks to the server it was built for.
+    const serverUrl = Platform.OS === "web" && DEFAULTS.serverUrl ? DEFAULTS.serverUrl : saved.serverUrl || DEFAULTS.serverUrl;
+    return { ...DEFAULTS, ...saved, serverUrl };
   } catch {
     return DEFAULTS;
   }
