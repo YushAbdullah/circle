@@ -78,16 +78,15 @@ Expo Go only records while the app is open on screen. To keep recording with the
 
 ### 4. Put the server online
 
-**Free option: your laptop + Cloudflare Tunnel.** Keep the server running on your laptop and give it a public `https://` address for free:
+**Free option: your laptop + Cloudflare Tunnel.** One command runs the server and gives it a free public `https://` address:
 
 ```bash
 cd server
-npm start
-# in another terminal:
-npx cloudflared tunnel --url http://localhost:4000
+npm install
+npm run live
 ```
 
-Copy the `https://….trycloudflare.com` address it prints into the app's Settings. The app then works from anywhere while your laptop is on. The address changes each time you restart the tunnel; recordings stay on your laptop.
+It prints the **Server address** and **Access token** to type into the app's Settings (it creates `server/.env` with a random token on first run). The app then works from anywhere while this window stays open and the laptop is awake. Recordings stay on your laptop. The address changes each time you run it, so re-enter it in the app.
 
 **Paid option: always on.**
 
