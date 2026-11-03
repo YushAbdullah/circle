@@ -21,7 +21,13 @@
       "package": "com.yushabdullah.circle"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "bundler": "metro",
+      "name": "CIRCLE",
+      "shortName": "CIRCLE",
+      "themeColor": "#F6FEF6",
+      "backgroundColor": "#F6FEF6"
     },
     "plugins": [
       "expo-router",
@@ -41,7 +47,8 @@
     },
     "platforms": [
       "ios",
-      "android"
+      "android",
+      "web"
     ],
     "owner": "yushabdullah",
     "extra": {

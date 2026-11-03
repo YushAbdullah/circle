@@ -11,6 +11,7 @@ import { processMeeting } from "./pipeline.js";
 import { attachLive } from "./live.js";
 import { chat, speak, transcribeQuestion, translate } from "./assistant.js";
 import type { Meeting } from "./types.js";
+import { AuthError, logIn, OWNER_ID, requireUser, signUp } from "./auth.js";
 
 const app = express();
 app.use(express.json());
@@ -28,18 +29,42 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, demoMode: demoMode(), transcriptOnly: transcriptOnly(), storage: store.kind, storageError });
+  res.json({
+    ok: true,
+    demoMode: demoMode(),
+    transcriptOnly: transcriptOnly(),
+    storage: store.kind,
+    storageError,
+    inviteRequired: !!config.inviteCode,
+  });
 });
 
-// Every other route needs the shared app token (when one is configured).
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (!config.appToken) return next();
-  const header = req.headers.authorization ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : String(req.query.token ?? "");
-  const a = Buffer.from(token);
-  const b = Buffer.from(config.appToken);
-  if (a.length === b.length && crypto.timingSafeEqual(a, b)) return next();
-  res.status(401).json({ error: "Unauthorized" });
+// Accounts: sign up and log in are open; everything after needs a signed-in user.
+const authRoute =
+  (fn: typeof signUp) =>
+  async (req: Request, res: Response) => {
+    try {
+      res.json(await fn(req.body ?? {}, req.ip ?? "unknown"));
+    } catch (e) {
+      const status = e instanceof AuthError ? e.status : 500;
+      res.status(status).json({ error: e instanceof Error ? e.message : "Something went wrong." });
+    }
+  };
+app.post("/auth/signup", authRoute(signUp));
+app.post("/auth/login", authRoute(logIn));
+
+app.use(requireUser);
+
+const ownerOf = (m: Meeting) => m.ownerId ?? OWNER_ID;
+
+// Any /meetings/:id route only sees the signed-in person's own meetings.
+app.param("id", (req: Request, res: Response, next: NextFunction, id: string) => {
+  const m = getMeeting(id);
+  if (m && ownerOf(m) !== req.userId) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  next();
 });
 
 const upload = multer({ dest: uploadTmpDir, limits: { fileSize: 1024 * 1024 * 1024 } });
@@ -76,8 +101,12 @@ function listItem(m: Meeting) {
   };
 }
 
-app.get("/meetings", (_req, res) => {
-  res.json(listMeetings().map(listItem));
+app.get("/meetings", (req, res) => {
+  res.json(
+    listMeetings()
+      .filter((m) => ownerOf(m) === req.userId)
+      .map(listItem),
+  );
 });
 
 app.post("/meetings", upload.single("audio"), async (req, res) => {
@@ -110,6 +139,7 @@ app.post("/meetings", upload.single("audio"), async (req, res) => {
   const durationSec = req.body.durationSec ? Number(req.body.durationSec) : null;
   const meeting: Meeting = {
     id,
+    ownerId: req.userId,
     title,
     createdAt,
     durationSec,

@@ -47,6 +47,8 @@ export interface Translation {
 
 export interface Meeting {
   id: string;
+  /** Account that recorded it. Older meetings without one belong to the owner. */
+  ownerId?: string;
   title: string;
   createdAt: string;
   durationSec: number | null;

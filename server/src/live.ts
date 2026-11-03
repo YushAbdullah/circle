@@ -1,13 +1,13 @@
 import type { IncomingMessage, Server } from "node:http";
-import crypto from "node:crypto";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import { config, demoMode } from "./config.js";
+import { tokenFrom, userIdFromToken } from "./auth.js";
 import { demoTranscript } from "./demo.js";
 
 /**
  * Live captions while recording.
  *
- * The phone opens ws(s)://<server>/live?token=<APP_TOKEN> and sends raw PCM
+ * The phone opens ws(s)://<server>/live?token=<log-in token> and sends raw PCM
  * (16 kHz, mono, signed 16-bit little-endian) as binary messages. The server
  * relays it to ElevenLabs realtime speech-to-text (the API key never leaves
  * the server) and sends captions back as JSON:
@@ -30,13 +30,8 @@ export type LiveMessage =
 const REALTIME_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime";
 
 function authorized(req: IncomingMessage): boolean {
-  if (!config.appToken) return true;
-  const url = new URL(req.url ?? "/", "http://x");
-  const header = req.headers.authorization ?? "";
-  const token = url.searchParams.get("token") ?? (header.startsWith("Bearer ") ? header.slice(7) : "");
-  const a = Buffer.from(token);
-  const b = Buffer.from(config.appToken);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!config.appToken && !config.authSecret) return true;
+  return !!userIdFromToken(tokenFrom(req));
 }
 
 export function attachLive(server: Server): void {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { showAlert } from "../../alert";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import type { AudioSource } from "expo-audio";
 import { api, formatDuration, statusLabel, type Meeting, type Translation } from "../../api";
@@ -44,7 +45,7 @@ export default function MeetingScreen() {
       setTranslation(await api.translate(m.id, language));
     } catch (e) {
       setLang(null);
-      Alert.alert("Translation failed", (e as Error).message);
+      showAlert("Translation failed", (e as Error).message);
     } finally {
       setTranslating(false);
     }
@@ -122,7 +123,7 @@ export default function MeetingScreen() {
   };
 
   const confirmDelete = () =>
-    Alert.alert("Delete", "What do you want to delete?", [
+    showAlert("Delete", "What do you want to delete?", [
       ...(m.audioDeleted
         ? []
         : [
@@ -132,7 +133,7 @@ export default function MeetingScreen() {
                 try {
                   setM(await api.deleteAudio(m.id));
                 } catch (e) {
-                  Alert.alert("Couldn't delete", (e as Error).message);
+                  showAlert("Couldn't delete", (e as Error).message);
                 }
               },
             },
