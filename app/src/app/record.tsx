@@ -51,7 +51,7 @@ export default function Record() {
         stream.stopFileRecordingAsync().catch(() => {});
         stream.stop();
       }
-      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+      setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false }).catch(() => {});
     },
     [],
   );

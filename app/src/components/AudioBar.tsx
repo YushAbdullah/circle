@@ -1,6 +1,10 @@
 import { forwardRef, useImperativeHandle } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useAudioPlayer, useAudioPlayerStatus, type AudioSource } from "expo-audio";
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, type AudioSource } from "expo-audio";
+
+// Play through the loudspeaker, even with the iPhone's silent switch on.
+const playbackMode = () =>
+  setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false, shouldPlayInBackground: false }).catch(() => {});
 import { formatDuration } from "../api";
 import { colors, elevation, radius, space, type } from "../theme";
 
@@ -17,6 +21,7 @@ export const AudioBar = forwardRef<AudioBarHandle, { source: AudioSource; fallba
 
     useImperativeHandle(ref, () => ({
       seekAndPlay: async (sec: number) => {
+        await playbackMode();
         await player.seekTo(sec);
         player.play();
       },
@@ -27,7 +32,11 @@ export const AudioBar = forwardRef<AudioBarHandle, { source: AudioSource; fallba
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={status.playing ? "Pause" : "Play"}
-          onPress={() => (status.playing ? player.pause() : player.play())}
+          onPress={async () => {
+            if (status.playing) return player.pause();
+            await playbackMode();
+            player.play();
+          }}
           style={styles.play}
         >
           <Text style={[type.title, { color: colors.onInk }]}>{status.playing ? "❚❚" : "▶"}</Text>
