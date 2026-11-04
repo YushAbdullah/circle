@@ -104,23 +104,25 @@ export default function Record() {
     }
   };
 
-  // PDPA: everyone in the room must agree before recording starts.
-  const askConsent = () =>
-    showAlert(
-      "Does everyone agree to be recorded?",
-      `Tell everyone in this meeting that CIRCLE is recording and that AI will write a transcript and report. Only continue if they all agree. The meeting is deleted automatically after ${RETENTION_DAYS} days.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Yes, everyone agreed", onPress: () => start() },
-      ],
-    );
+  // PDPA: everyone in the room must agree before recording starts. A tick box on
+  // the page, not a pop-up, because Safari can silently block pop-ups.
+  const [consent, setConsent] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const askConsent = () => {
+    if (!consent) {
+      setStartError("Tick the box first to confirm everyone agrees to be recorded.");
+      return;
+    }
+    setStartError(null);
+    start();
+  };
 
   const start = async () => {
     setPhase("starting");
     if (isWeb) {
       if (!webRecordingSupported()) {
         setPhase("idle");
-        showAlert("Not supported", "This browser can't record. On iPhone, open CIRCLE in Safari.");
+        setStartError("This browser can't record. On iPhone, open CIRCLE in Safari.");
         return;
       }
       try {
@@ -134,7 +136,9 @@ export default function Record() {
         connectLive();
       } catch (e) {
         setPhase("idle");
-        showAlert("Microphone needed", `Allow microphone access for this website, then try again.\n\n${(e as Error).message}`);
+        setStartError(
+          `Microphone blocked. In Safari tap "aA" in the address bar > Website Settings > Microphone > Allow, then try again. (${(e as Error).message})`,
+        );
       }
       return;
     }
@@ -260,6 +264,24 @@ export default function Record() {
                 : `${usage.max ? `${usage.max - usage.used} of ${usage.max} meetings left this month. ` : ""}Up to ${usage.maxMinutes} minutes each.`}
             </Text>
           ) : null}
+          <Pressable
+            onPress={() => {
+              setConsent(!consent);
+              setStartError(null);
+            }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: consent }}
+            style={styles.consentRow}
+          >
+            <View style={[styles.box, consent && styles.boxOn]}>{consent ? <Text style={styles.tick}>✓</Text> : null}</View>
+            <Text style={[type.bodySm, { flex: 1, color: colors.text }]}>
+              Everyone in this meeting knows CIRCLE is recording and agrees. AI will write the transcript and report, and the
+              meeting is deleted after {RETENTION_DAYS} days.
+            </Text>
+          </Pressable>
+          {startError ? (
+            <Text style={[type.bodySm, { color: colors.danger, textAlign: "center", marginTop: space.sm }]}>{startError}</Text>
+          ) : null}
           <Text style={[type.bodySm, { textAlign: "center", marginTop: space.md }]}>
             {isWeb ? "Keep this page open and the screen on while recording. " : ""}Put the phone in the middle of the table. You'll see what people say live, and the full report with speaker
             names comes after you stop.
@@ -307,6 +329,28 @@ export default function Record() {
 }
 
 const styles = StyleSheet.create({
+  consentRow: {
+    flexDirection: "row",
+    gap: space.sm,
+    alignItems: "flex-start",
+    alignSelf: "stretch",
+    marginTop: space.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: space.md,
+  },
+  box: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.textSubtle,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  boxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tick: { color: colors.onPrimary, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 16 },
   screen: { flex: 1, backgroundColor: colors.surfaceMuted },
   top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: space.md },
   liveTag: {
