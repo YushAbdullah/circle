@@ -43,6 +43,7 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ title: "Log in", headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="info/[page]" options={{ title: "" }} />
         <Stack.Screen name="contact" options={{ title: "Contact us" }} />
+        <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
       </Stack>
     </>
   );

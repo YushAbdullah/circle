@@ -183,3 +183,23 @@ export async function logIn(input: { email?: unknown; password?: unknown }, ip: 
   const pub = publicUser(user);
   return { token: issueToken(pub.id), user: pub };
 }
+
+/**
+ * Self-service account deletion: checks the password again, then removes the
+ * log-in. The caller deletes the person's meetings first. The owner account
+ * can't be deleted this way (it holds the APP_TOKEN meetings).
+ */
+export async function deleteAccount(input: { email?: unknown; password?: unknown }, ip: string, userId: string | undefined) {
+  if (tooManyAttempts(ip)) throw new AuthError("Too many tries. Wait 15 minutes and try again.", 429);
+  const email = typeof input.email === "string" ? input.email : "";
+  const password = typeof input.password === "string" ? input.password : "";
+  const user = email ? await getUser(email) : null;
+  if (!user || !same(hashPassword(password, user.salt), user.hash)) throw new AuthError("Wrong password.", 401);
+  const id = accountId(user);
+  if (id !== userId) throw new AuthError("You can only delete the account you are logged in to.", 403);
+  if (id === OWNER_ID) throw new AuthError("The owner account can't be deleted from the app.", 403);
+  return {
+    id,
+    remove: () => store.remove(userKey(user.email)),
+  };
+}

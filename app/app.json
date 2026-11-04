@@ -30,7 +30,12 @@
       "backgroundColor": "#F6FEF6"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": false
+        }
+      ],
       [
         "expo-audio",
         {

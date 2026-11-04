@@ -61,6 +61,11 @@ export async function overLimit(uid: string | undefined): Promise<string | null>
   return `You've used all ${u.max} meetings for this month. You can record again next month.`;
 }
 
+export async function forgetUsage(uid: string): Promise<void> {
+  cache.delete(uid);
+  await store.remove(keyFor(uid)).catch(() => {});
+}
+
 export async function countMeeting(uid: string | undefined): Promise<void> {
   if (!isLimited(uid)) return;
   const s = await load(uid!);

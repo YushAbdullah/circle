@@ -168,7 +168,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "10. Ending your account",
         body: [
-          `You can stop using CIRCLE at any time and ask us to delete your account through ${CONTACT}. We may suspend accounts that break these terms.`,
+          `You can stop using CIRCLE at any time and delete your account yourself in Settings > Delete my account. This permanently deletes your log-in and all your meetings straight away. We may suspend accounts that break these terms.`,
         ],
       },
       {
@@ -232,7 +232,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "Your rights",
         body: [
-          `Under the PDPA you can ask to see the data we hold about you, correct it, limit how it is used, or have it deleted. Send your request through ${CONTACT} and we will reply within 21 days.`,
+          `Under the PDPA you can ask to see the data we hold about you, correct it, limit how it is used, or have it deleted. You can delete your account and all your meetings yourself at any time in Settings > Delete my account. For other requests, use ${CONTACT} and we will reply within 21 days.`,
         ],
       },
       {
