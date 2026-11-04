@@ -76,8 +76,8 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "Free trial (available now)",
         body: [
-          "• 5 meetings every month",
-          "• Up to 30 minutes per meeting",
+          "• 3 meetings every month",
+          "• Up to 15 minutes per meeting",
           "• Live captions, speaker labels, AI report, Ask AI and translation",
           `• Meetings kept for ${RETENTION_DAYS} days`,
         ],
@@ -150,7 +150,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "7. Limits and paid plans",
         body: [
-          "The free trial includes 5 meetings a month of up to 30 minutes each. When paid plans launch, their prices and terms will be shown before you pay. Nothing is charged without your agreement.",
+          "The free trial includes 3 meetings a month of up to 15 minutes each. When paid plans launch, their prices and terms will be shown before you pay. Nothing is charged without your agreement.",
         ],
       },
       {
