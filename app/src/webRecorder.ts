@@ -29,9 +29,20 @@ export function webRecordingSupported(): boolean {
 }
 
 export async function startWebRecording(onPcm: (pcm: ArrayBuffer) => void): Promise<WebRecorder> {
-  const media = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true },
-  });
+  // Safari only lets audio start straight from a tap, so create and resume the
+  // audio context before waiting for the microphone.
+  const Ctx = globalThis.AudioContext ?? (globalThis as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new Ctx();
+  const resumed = ctx.resume().catch(() => {});
+  let media: MediaStream;
+  try {
+    media = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch (e) {
+    ctx.close().catch(() => {});
+    throw e;
+  }
   const [mimeType, ext] = CANDIDATES.find(([t]) => MediaRecorder.isTypeSupported(t)) ?? ["", ".webm"];
   const recorder = new MediaRecorder(media, mimeType ? { mimeType } : undefined);
   const chunks: Blob[] = [];
@@ -46,9 +57,7 @@ export async function startWebRecording(onPcm: (pcm: ArrayBuffer) => void): Prom
   nav.wakeLock?.request("screen").then((w) => (wake = w), () => {});
 
   // Live captions: tap the microphone and convert to 16 kHz mono int16.
-  const Ctx = globalThis.AudioContext ?? (globalThis as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  const ctx = new Ctx();
-  await ctx.resume().catch(() => {});
+  await resumed;
   const source = ctx.createMediaStreamSource(media);
   const tap = ctx.createScriptProcessor(4096, 1, 1);
   tap.onaudioprocess = (e) => {
