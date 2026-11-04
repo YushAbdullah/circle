@@ -48,6 +48,11 @@ export default function SettingsScreen() {
           {s.account ? `Logged in as ${s.account.name} (${s.account.email})` : "Using the shared access token"}
         </Text>
         <Button label="Log out" variant="ghost" onPress={() => logOut()} />
+        {s.account ? (
+          <Pressable onPress={() => router.push("/delete-account")} accessibilityRole="button" style={{ marginTop: space.md, alignSelf: "center" }}>
+            <Text style={[type.label, { color: colors.danger }]}>Delete my account</Text>
+          </Pressable>
+        ) : null}
       </Card>
       <Card>
         <Text style={[type.title, { marginBottom: space.xs }]}>About and policies</Text>

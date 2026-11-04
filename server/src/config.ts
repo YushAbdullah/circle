@@ -11,8 +11,8 @@ export const config = {
   // Optional: people need this code to create an account (keeps costs under control).
   inviteCode: (process.env.INVITE_CODE ?? "").trim(),
   // Limits for everyone except the owner. 0 means no limit.
-  meetingsPerMonth: Number(process.env.MEETINGS_PER_MONTH ?? 5),
-  maxMeetingMinutes: Number(process.env.MAX_MEETING_MINUTES ?? 30),
+  meetingsPerMonth: Number(process.env.MEETINGS_PER_MONTH ?? 3),
+  maxMeetingMinutes: Number(process.env.MAX_MEETING_MINUTES ?? 15),
   // Meetings (recording, transcript, report) are permanently deleted after this many days. 0 = keep.
   // Where "Contact us" requests are emailed. Kept on the server only, never shown to users.
   contactEmail: (process.env.CONTACT_EMAIL ?? "").trim(),

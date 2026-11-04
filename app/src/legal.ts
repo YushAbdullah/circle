@@ -76,8 +76,8 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "Free trial (available now)",
         body: [
-          "• 5 meetings every month",
-          "• Up to 30 minutes per meeting",
+          "• 3 meetings every month",
+          "• Up to 15 minutes per meeting",
           "• Live captions, speaker labels, AI report, Ask AI and translation",
           `• Meetings kept for ${RETENTION_DAYS} days`,
         ],
@@ -150,7 +150,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "7. Limits and paid plans",
         body: [
-          "The free trial includes 5 meetings a month of up to 30 minutes each. When paid plans launch, their prices and terms will be shown before you pay. Nothing is charged without your agreement.",
+          "The free trial includes 3 meetings a month of up to 15 minutes each. When paid plans launch, their prices and terms will be shown before you pay. Nothing is charged without your agreement.",
         ],
       },
       {
@@ -168,7 +168,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "10. Ending your account",
         body: [
-          `You can stop using CIRCLE at any time and ask us to delete your account through ${CONTACT}. We may suspend accounts that break these terms.`,
+          `You can stop using CIRCLE at any time and delete your account yourself in Settings > Delete my account. This permanently deletes your log-in and all your meetings straight away. We may suspend accounts that break these terms.`,
         ],
       },
       {
@@ -232,7 +232,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "Your rights",
         body: [
-          `Under the PDPA you can ask to see the data we hold about you, correct it, limit how it is used, or have it deleted. Send your request through ${CONTACT} and we will reply within 21 days.`,
+          `Under the PDPA you can ask to see the data we hold about you, correct it, limit how it is used, or have it deleted. You can delete your account and all your meetings yourself at any time in Settings > Delete my account. For other requests, use ${CONTACT} and we will reply within 21 days.`,
         ],
       },
       {

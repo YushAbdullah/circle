@@ -176,6 +176,12 @@ export interface Usage {
 
 export const api = {
   usage: () => request<Usage>("/usage"),
+  deleteAccount: (input: { email: string; password: string }) =>
+    request<{ ok: boolean }>("/auth/delete-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
   contact: (input: { name: string; email: string; topic: string; message: string }) =>
     request<{ ok: boolean }>("/contact", {
       method: "POST",

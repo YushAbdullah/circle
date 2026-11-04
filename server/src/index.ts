@@ -11,10 +11,10 @@ import { processMeeting } from "./pipeline.js";
 import { attachLive } from "./live.js";
 import { chat, speak, transcribeQuestion, translate } from "./assistant.js";
 import type { Meeting } from "./types.js";
-import { AuthError, logIn, OWNER_ID, requireUser, signUp, tokenFrom, userIdFromToken } from "./auth.js";
+import { AuthError, deleteAccount, logIn, OWNER_ID, requireUser, signUp, tokenFrom, userIdFromToken } from "./auth.js";
 import { ContactError, submitContact } from "./contact.js";
 import { startRetention } from "./retention.js";
-import { countMeeting, getUsage, maxSeconds, overLimit } from "./usage.js";
+import { countMeeting, forgetUsage, getUsage, maxSeconds, overLimit } from "./usage.js";
 
 const app = express();
 app.use(express.json());
@@ -113,6 +113,23 @@ function listItem(m: Meeting) {
     audioDeleted: !!m.audioDeleted,
   };
 }
+
+// Self-service: permanently delete this person's account and all their meetings.
+app.post("/auth/delete-account", async (req: Request, res: Response) => {
+  try {
+    const account = await deleteAccount(req.body ?? {}, req.ip ?? "unknown", req.userId);
+    for (const m of listMeetings().filter((x) => ownerOf(x) === account.id)) {
+      await store.remove(`audio/${m.audioFile}`).catch(() => {});
+      await deleteMeeting(m.id);
+    }
+    await forgetUsage(account.id);
+    await account.remove();
+    console.log("An account was deleted at the user's request.");
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(e instanceof AuthError ? e.status : 500).json({ error: e instanceof Error ? e.message : "Could not delete." });
+  }
+});
 
 // How many meetings this person has left this month.
 app.get("/usage", async (req, res) => {
