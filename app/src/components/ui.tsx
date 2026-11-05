@@ -64,16 +64,13 @@ export function StatusPill({ status }: { status: MeetingStatus }) {
   );
 }
 
-/** Brand mark: two overlapping circles, mint left, ink right. */
+/** Brand mark: the name itself, CIXCLE, with the X in the accent green. */
 export function Logo({ size = 28 }: { size?: number }) {
+  const text = { fontFamily: type.headingMd.fontFamily, fontSize: size * 0.8, lineHeight: size, letterSpacing: size * 0.04, color: colors.ink };
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }} accessibilityLabel="CIRCLE">
-      <View style={{ width: size * 1.6, height: size }}>
-        <View style={[styles.logoDot, { width: size, height: size, backgroundColor: colors.primary, left: 0 }]} />
-        <View style={[styles.logoDot, { width: size, height: size, backgroundColor: colors.ink, left: size * 0.6 }]} />
-      </View>
-      <Text style={[type.headingMd, { letterSpacing: 1 }]}>CIRCLE</Text>
-    </View>
+    <Text style={text} accessibilityLabel="CIXCLE">
+      CI<Text style={{ color: colors.accent }}>X</Text>CLE
+    </Text>
   );
 }
 
@@ -99,5 +96,4 @@ const styles = StyleSheet.create({
   },
   pill: { flexDirection: "row", alignItems: "center", gap: 4 },
   dot: { width: 8, height: 8, borderRadius: radius.full },
-  logoDot: { position: "absolute", top: 0, borderRadius: radius.full },
 });

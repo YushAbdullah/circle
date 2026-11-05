@@ -108,7 +108,7 @@ export default function Record() {
   const askConsent = () =>
     showAlert(
       "Does everyone agree to be recorded?",
-      `Tell everyone in this meeting that CIRCLE is recording and that AI will write a transcript and report. Only continue if they all agree. The meeting is deleted automatically after ${RETENTION_DAYS} days.`,
+      `Tell everyone in this meeting that CIXCLE is recording and that AI will write a transcript and report. Only continue if they all agree. The meeting is deleted automatically after ${RETENTION_DAYS} days.`,
       [
         { text: "Cancel", style: "cancel" },
         { text: "Yes, everyone agreed", onPress: () => start() },
@@ -120,7 +120,7 @@ export default function Record() {
     if (isWeb) {
       if (!webRecordingSupported()) {
         setPhase("idle");
-        showAlert("Not supported", "This browser can't record. On iPhone, open CIRCLE in Safari.");
+        showAlert("Not supported", "This browser can't record. On iPhone, open CIXCLE in Safari.");
         return;
       }
       try {

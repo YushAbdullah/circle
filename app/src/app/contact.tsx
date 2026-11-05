@@ -6,7 +6,7 @@ import { colors, fonts, radius, space, type } from "../theme";
 
 const TOPICS = ["Question or feedback", "Privacy / PDPA request", "Delete my account", "Pro or Team plan", "Report a problem"];
 
-/** Contact form: the server emails it to the CIRCLE owner. Works without logging in. */
+/** Contact form: the server emails it to the CIXCLE owner. Works without logging in. */
 export default function Contact() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

@@ -23,7 +23,7 @@ export interface Page {
 export type PageKey = "about" | "plans" | "terms" | "privacy" | "ai";
 
 export const PAGE_ORDER: { key: PageKey; label: string }[] = [
-  { key: "about", label: "About CIRCLE" },
+  { key: "about", label: "About CIXCLE" },
   { key: "plans", label: "Plans" },
   { key: "terms", label: "Terms of Service" },
   { key: "privacy", label: "Privacy Policy (PDPA)" },
@@ -32,14 +32,14 @@ export const PAGE_ORDER: { key: PageKey; label: string }[] = [
 
 export const PAGES: Record<PageKey, Page> = {
   about: {
-    title: "About CIRCLE",
+    title: "About CIXCLE",
     intro: "Meetings in Malay, English and Manglish, turned into clear notes you can act on.",
     sections: [
       {
-        heading: "Why CIRCLE",
+        heading: "Why CIXCLE",
         body: [
           "Most meeting tools are built for one language. In Malaysia we switch between Bahasa Melayu, English and our own slang in the same sentence, and those tools get lost.",
-          "CIRCLE was started by Yusri in Malaysia to fix that. You put your phone on the table and CIRCLE writes the transcript, tells you who said what, and gives you a short report with decisions, action items and suggestions.",
+          "CIXCLE was started by Yusri in Malaysia to fix that. You put your phone on the table and CIXCLE writes the transcript, tells you who said what, and gives you a short report with decisions, action items and suggestions.",
         ],
       },
       {
@@ -58,7 +58,7 @@ export const PAGES: Record<PageKey, Page> = {
         heading: "What we believe",
         body: [
           "• Your words belong to you. Meetings are deleted automatically after 30 days, and we never sell your data.",
-          "• People decide, AI assists. CIRCLE suggests; you and your team make the calls.",
+          "• People decide, AI assists. CIXCLE suggests; you and your team make the calls.",
           "• Built for how we talk. Manglish is not a mistake to correct.",
         ],
       },
@@ -108,12 +108,12 @@ export const PAGES: Record<PageKey, Page> = {
 
   terms: {
     title: "Terms of Service",
-    intro: `Last updated ${UPDATED}. By creating an account or using CIRCLE you agree to these terms.`,
+    intro: `Last updated ${UPDATED}. By creating an account or using CIXCLE you agree to these terms.`,
     sections: [
       {
         heading: "1. The service",
         body: [
-          "CIRCLE records meetings, turns speech into text and uses AI to write summaries, action items and suggestions. The service is offered from Malaysia and is currently a free trial that may change, be limited or stop at any time.",
+          "CIXCLE records meetings, turns speech into text and uses AI to write summaries, action items and suggestions. The service is offered from Malaysia and is currently a free trial that may change, be limited or stop at any time.",
         ],
       },
       {
@@ -125,13 +125,13 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "3. Recording other people",
         body: [
-          "Before you record, you must tell everyone in the meeting and get their agreement. You must not record anyone secretly or where the law or a confidentiality duty does not allow it. You are responsible for the recordings you make, not CIRCLE.",
+          "Before you record, you must tell everyone in the meeting and get their agreement. You must not record anyone secretly or where the law or a confidentiality duty does not allow it. You are responsible for the recordings you make, not CIXCLE.",
         ],
       },
       {
         heading: "4. Acceptable use",
         body: [
-          "Do not use CIRCLE to break the law, harass people, record private conversations without consent, upload content you have no right to, or try to break, overload or copy the service.",
+          "Do not use CIXCLE to break the law, harass people, record private conversations without consent, upload content you have no right to, or try to break, overload or copy the service.",
         ],
       },
       {
@@ -156,7 +156,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "8. No guarantee",
         body: [
-          "CIRCLE is provided \"as is\" during the trial. We work hard to keep it running and accurate, but we do not promise it will always be available, error-free or suitable for a particular purpose.",
+          "CIXCLE is provided \"as is\" during the trial. We work hard to keep it running and accurate, but we do not promise it will always be available, error-free or suitable for a particular purpose.",
         ],
       },
       {
@@ -168,13 +168,13 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "10. Ending your account",
         body: [
-          `You can stop using CIRCLE at any time and delete your account yourself in Settings > Delete my account. This permanently deletes your log-in and all your meetings straight away. We may suspend accounts that break these terms.`,
+          `You can stop using CIXCLE at any time and delete your account yourself in Settings > Delete my account. This permanently deletes your log-in and all your meetings straight away. We may suspend accounts that break these terms.`,
         ],
       },
       {
         heading: "11. Changes and law",
         body: [
-          "We may update these terms and will show the new date here. Continuing to use CIRCLE means you accept the update. These terms are governed by the laws of Malaysia.",
+          "We may update these terms and will show the new date here. Continuing to use CIXCLE means you accept the update. These terms are governed by the laws of Malaysia.",
         ],
       },
     ],
@@ -182,7 +182,7 @@ export const PAGES: Record<PageKey, Page> = {
 
   privacy: {
     title: "Privacy Policy (PDPA)",
-    intro: `Last updated ${UPDATED}. This notice explains how CIRCLE handles your personal data under Malaysia's Personal Data Protection Act 2010 (PDPA). Notis ini juga boleh didapati dalam Bahasa Melayu atas permintaan.`,
+    intro: `Last updated ${UPDATED}. This notice explains how CIXCLE handles your personal data under Malaysia's Personal Data Protection Act 2010 (PDPA). Notis ini juga boleh didapati dalam Bahasa Melayu atas permintaan.`,
     sections: [
       {
         heading: "What we collect",
@@ -196,7 +196,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "Why we use it",
         body: [
-          "Only to provide CIRCLE: to log you in, transcribe and summarise your meetings, apply plan limits, keep the service secure and answer your requests. We do not sell your data or use it for advertising.",
+          "Only to provide CIXCLE: to log you in, transcribe and summarise your meetings, apply plan limits, keep the service secure and answer your requests. We do not sell your data or use it for advertising.",
         ],
       },
       {
@@ -215,12 +215,12 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "Who processes it for us",
         body: [
-          "To run CIRCLE we use trusted service providers, some of which store or process data outside Malaysia:",
+          "To run CIXCLE we use trusted service providers, some of which store or process data outside Malaysia:",
           "• ElevenLabs: speech-to-text, live captions and voice.",
           "• An AI model provider (Groq, Google Gemini or Anthropic Claude): reports, Ask AI and translation.",
           "• Supabase: secure file storage.",
           "• Render: hosting for the app and server.",
-          "They may only use your data to provide their service to us. By using CIRCLE you consent to this transfer as allowed under section 129 of the PDPA.",
+          "They may only use your data to provide their service to us. By using CIXCLE you consent to this transfer as allowed under section 129 of the PDPA.",
         ],
       },
       {
@@ -237,7 +237,7 @@ export const PAGES: Record<PageKey, Page> = {
       },
       {
         heading: "Children",
-        body: ["CIRCLE is not meant for people under 18."],
+        body: ["CIXCLE is not meant for people under 18."],
       },
       {
         heading: "Contact",
@@ -248,7 +248,7 @@ export const PAGES: Record<PageKey, Page> = {
 
   ai: {
     title: "AI Use Policy",
-    intro: `Last updated ${UPDATED}. How CIRCLE uses artificial intelligence, and what it does not do.`,
+    intro: `Last updated ${UPDATED}. How CIXCLE uses artificial intelligence, and what it does not do.`,
     sections: [
       {
         heading: "What the AI does",
@@ -267,7 +267,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "It can make mistakes",
         body: [
-          "AI can mishear words, mix up speakers, miss context or get slang wrong. Always check important names, numbers, dates and commitments against the recording before you act on them. Do not use CIRCLE output as legal, financial, medical or HR advice.",
+          "AI can mishear words, mix up speakers, miss context or get slang wrong. Always check important names, numbers, dates and commitments against the recording before you act on them. Do not use CIXCLE output as legal, financial, medical or HR advice.",
         ],
       },
       {
@@ -279,7 +279,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "Fair use",
         body: [
-          "Do not use CIRCLE's AI to profile, discriminate against or secretly monitor people, or to create misleading records of what someone said.",
+          "Do not use CIXCLE's AI to profile, discriminate against or secretly monitor people, or to create misleading records of what someone said.",
         ],
       },
       {

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CIRCLE",
+    "name": "CIXCLE",
     "slug": "circle",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -24,8 +24,8 @@
       "favicon": "./assets/favicon.png",
       "output": "single",
       "bundler": "metro",
-      "name": "CIRCLE",
-      "shortName": "CIRCLE",
+      "name": "CIXCLE",
+      "shortName": "CIXCLE",
       "themeColor": "#F6FEF6",
       "backgroundColor": "#F6FEF6"
     },
@@ -39,7 +39,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow CIRCLE to record your meetings.",
+          "microphonePermission": "Allow CIXCLE to record your meetings.",
           "enableBackgroundRecording": true
         }
       ],
