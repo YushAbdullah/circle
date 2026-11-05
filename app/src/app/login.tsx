@@ -53,7 +53,7 @@ export default function Login() {
           <Logo />
           <Text style={[type.headingLg, { marginTop: space.lg }]}>{signup ? "Create your account" : "Welcome back"}</Text>
           <Text style={[type.body, { marginTop: space.sm, marginBottom: space.lg }]}>
-            Record meetings in Malay, English or Manglish. CIRCLE writes the transcript and the report.
+            Record meetings in Malay, English or Manglish. CIXCLE writes the transcript and the report.
           </Text>
 
           <Card>
@@ -79,7 +79,7 @@ export default function Login() {
             {signup && inviteRequired ? (
               <Field
                 label="Invite code"
-                hint="Ask the person who shared CIRCLE with you"
+                hint="Ask the person who shared CIXCLE with you"
                 value={inviteCode}
                 onChangeText={setInviteCode}
                 autoCapitalize="none"
@@ -97,7 +97,7 @@ export default function Login() {
                   I am 18 or older and agree to the{" "}
                   <Text style={styles.link} onPress={() => router.push("/info/terms")}>Terms of Service</Text>,{" "}
                   <Text style={styles.link} onPress={() => router.push("/info/privacy")}>Privacy Policy (PDPA)</Text> and{" "}
-                  <Text style={styles.link} onPress={() => router.push("/info/ai")}>AI Use Policy</Text>. I consent to CIRCLE
+                  <Text style={styles.link} onPress={() => router.push("/info/ai")}>AI Use Policy</Text>. I consent to CIXCLE
                   processing my data as described, including by providers outside Malaysia.
                 </Text>
               </Pressable>

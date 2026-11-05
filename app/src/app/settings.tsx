@@ -92,7 +92,7 @@ export default function SettingsScreen() {
       <Card>
         <Field
           label="Custom words"
-          hint="Names, company terms or slang the AI should listen for, separated by commas. e.g. Yusri, CIRCLE, tapau, KL Sentral"
+          hint="Names, company terms or slang the AI should listen for, separated by commas. e.g. Yusri, CIXCLE, tapau, KL Sentral"
           value={s.vocabulary}
           onChangeText={(v) => setS({ ...s, vocabulary: v })}
           multiline

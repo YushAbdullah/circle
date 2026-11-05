@@ -154,7 +154,7 @@ export async function signUp(
     throw new AuthError("Please agree to the Terms, Privacy Policy and AI Use Policy to create an account.");
   }
   if (config.inviteCode && !same(String(input.inviteCode ?? "").trim(), config.inviteCode)) {
-    throw new AuthError("That invite code is not right. Ask the person who shared CIRCLE with you.", 403);
+    throw new AuthError("That invite code is not right. Ask the person who shared CIXCLE with you.", 403);
   }
   if (await getUser(email)) throw new AuthError("This email already has an account. Log in instead.", 409);
   const salt = crypto.randomBytes(16).toString("hex");

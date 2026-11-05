@@ -20,7 +20,7 @@ const SUGGESTIONS = [
   "Draft a follow-up message to the team",
 ];
 
-/** "Ask CIRCLE": talk with the AI about this meeting, by typing or by voice. */
+/** "Ask CIXCLE": talk with the AI about this meeting, by typing or by voice. */
 export function AskAI({ meetingId }: { meetingId: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -116,7 +116,7 @@ export function AskAI({ meetingId }: { meetingId: string }) {
           <View style={[styles.orbInner, listening && { backgroundColor: colors.danger }]} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[type.headingMd, { color: colors.onInk }]}>Ask CIRCLE</Text>
+          <Text style={[type.headingMd, { color: colors.onInk }]}>Ask CIXCLE</Text>
           <Text style={[type.bodySm, { color: "#C9D3CB" }]}>
             Talk about this meeting. Ask for advice, next steps or a recap in Malay or English.
           </Text>

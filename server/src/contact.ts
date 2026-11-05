@@ -51,7 +51,7 @@ export async function submitContact(
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json", Referer: "https://circle.app" },
     body: JSON.stringify({
-      _subject: `CIRCLE: ${topic}`,
+      _subject: `CIXCLE: ${topic}`,
       _replyto: email,
       _template: "table",
       _captcha: "false",

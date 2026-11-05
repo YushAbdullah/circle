@@ -120,7 +120,7 @@ export default function Home() {
               <Card style={{ marginTop: space.lg }}>
                 <Text style={type.title}>Connect your server</Text>
                 <Text style={[type.bodySm, { marginVertical: space.sm }]}>
-                  Add the CIRCLE server address in Settings to start recording.
+                  Add the CIXCLE server address in Settings to start recording.
                 </Text>
                 <Button label="Open settings" variant="ink" onPress={() => router.push("/settings")} />
               </Card>

@@ -277,7 +277,7 @@ export default function MeetingScreen() {
             </Card>
             {view.recommendations.length ? (
               <View style={styles.recommend}>
-                <Text style={[type.title, { color: colors.onInk, marginBottom: space.sm }]}>✦  CIRCLE recommends</Text>
+                <Text style={[type.title, { color: colors.onInk, marginBottom: space.sm }]}>✦  CIXCLE recommends</Text>
                 {view.recommendations.map((r, i) => (
                   <View key={i} style={{ flexDirection: "row", gap: space.sm, marginBottom: space.sm }}>
                     <Text style={[type.label, { color: colors.primary }]}>{i + 1}</Text>
