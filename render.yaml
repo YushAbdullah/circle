@@ -42,7 +42,7 @@ services:
 
   # The web version people open in Safari (free static site).
   - type: web
-    name: circle-web
+    name: cixcle-web
     runtime: static
     rootDir: app
     buildCommand: npm ci && npx expo export --platform web
