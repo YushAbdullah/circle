@@ -14,7 +14,7 @@ import type { Meeting } from "./types.js";
 import { AuthError, deleteAccount, logIn, OWNER_ID, requireUser, signUp, tokenFrom, userIdFromToken } from "./auth.js";
 import { ContactError, submitContact } from "./contact.js";
 import { startRetention } from "./retention.js";
-import { countMeeting, forgetUsage, getUsage, maxSeconds, overLimit } from "./usage.js";
+import { aiOverLimit, countAiQuestion, countMeeting, forgetUsage, getUsage, maxSeconds, overLimit } from "./usage.js";
 
 const app = express();
 app.use(express.json());
@@ -279,7 +279,14 @@ app.post(
       res.status(400).json({ error: "Send at least one user message." });
       return;
     }
-    res.json({ reply: await chat(m, clean) });
+    const limitError = await aiOverLimit(req.userId);
+    if (limitError) {
+      res.status(403).json({ error: limitError, limitReached: true });
+      return;
+    }
+    const reply = await chat(m, clean);
+    await countAiQuestion(req.userId);
+    res.json({ reply, usage: await getUsage(req.userId) });
   }),
 );
 

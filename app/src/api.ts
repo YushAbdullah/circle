@@ -172,6 +172,8 @@ export interface Usage {
   used: number;
   max: number;
   maxMinutes: number;
+  aiUsed?: number;
+  aiMax?: number;
 }
 
 export const api = {
@@ -211,7 +213,7 @@ export const api = {
   remove: (id: string) => request<void>(`/meetings/${id}`, { method: "DELETE" }),
   deleteAudio: (id: string) => request<Meeting>(`/meetings/${id}/audio`, { method: "DELETE" }),
   chat: (id: string, messages: ChatMessage[]) =>
-    request<{ reply: string }>(`/meetings/${id}/chat`, {
+    request<{ reply: string; usage?: Usage }>(`/meetings/${id}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages }),

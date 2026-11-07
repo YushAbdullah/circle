@@ -124,30 +124,20 @@ export default function MeetingScreen() {
   };
 
   const confirmDelete = () =>
-    showAlert("Delete", "What do you want to delete?", [
-      ...(m.audioDeleted
-        ? []
-        : [
-            {
-              text: "Recording only (keep report)",
-              onPress: async () => {
-                try {
-                  setM(await api.deleteAudio(m.id));
-                } catch (e) {
-                  showAlert("Couldn't delete", (e as Error).message);
-                }
-              },
-            },
-          ]),
+    showAlert("Delete this meeting?", "The recording, transcript and report will be permanently deleted. This can't be undone.", [
+      { text: "Cancel", style: "cancel" as const },
       {
-        text: "Whole meeting",
+        text: "Delete",
         style: "destructive" as const,
         onPress: async () => {
-          await api.remove(m.id);
-          router.back();
+          try {
+            await api.remove(m.id);
+            router.back();
+          } catch (e) {
+            showAlert("Couldn't delete", (e as Error).message);
+          }
         },
       },
-      { text: "Cancel", style: "cancel" as const },
     ]);
 
   const hasAiReport = !!report && !report.summary.startsWith(NO_AI_PREFIX);
@@ -324,7 +314,7 @@ export default function MeetingScreen() {
             ) : null}
             <View style={{ flexDirection: "row", gap: space.sm }}>
               <Button label="Share report" variant="ink" onPress={shareReport} style={{ flex: 1 }} />
-              <Button label="Delete…" variant="ghost" onPress={confirmDelete} style={{ flex: 1 }} />
+              <Button label="Delete" variant="ghost" onPress={confirmDelete} style={{ flex: 1 }} />
             </View>
           </>
         ) : null}

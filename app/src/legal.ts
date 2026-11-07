@@ -71,37 +71,27 @@ export const PAGES: Record<PageKey, Page> = {
 
   plans: {
     title: "Plans",
-    intro: "Start free. Paid plans are coming soon.",
+    intro: "Try CIXCLE free. For real work, get the Business plan.",
     sections: [
       {
-        heading: "Free trial (available now)",
+        heading: "Free (very limited)",
         body: [
-          "• 3 meetings every month",
-          "• Up to 15 minutes per meeting",
-          "• Live captions, speaker labels, AI report, Ask AI and translation",
-          `• Meetings kept for ${RETENTION_DAYS} days`,
+          "For trying CIXCLE out.",
+          "• 3 meetings a month, up to 15 minutes each",
+          "• 20 Ask AI questions a month",
+          "• Live captions, speaker labels, AI report and translation",
+          `• Meetings deleted after ${RETENTION_DAYS} days`,
         ],
       },
       {
-        heading: "Pro (coming soon)",
+        heading: "Business (full version)",
         body: [
-          "For people with regular meetings.",
-          "• More meetings every month",
-          "• Longer meetings, up to 2 hours",
-          "• Download and share reports",
+          "For companies, teams and business deals.",
+          "• Long meetings and many more each month",
+          "• Unlimited Ask AI",
+          "• Shared meetings, custom company words, admin and invoices",
+          "• Priced for your team: fill in the Business enquiry form and we'll send a proposal",
         ],
-      },
-      {
-        heading: "Team (coming soon)",
-        body: [
-          "For companies and organisations.",
-          "• Shared meetings for your whole team",
-          "• Custom words for your company names and terms",
-          "• Admin controls and invoices",
-        ],
-      },
-      {
-        body: ["Want Pro or Team when it launches? Send us a message through the Contact us form (topic: Pro or Team plan) and we'll let you know first."],
       },
     ],
   },
@@ -150,7 +140,7 @@ export const PAGES: Record<PageKey, Page> = {
       {
         heading: "7. Limits and paid plans",
         body: [
-          "The free trial includes 3 meetings a month of up to 15 minutes each. When paid plans launch, their prices and terms will be shown before you pay. Nothing is charged without your agreement.",
+          "The free plan includes 3 meetings a month of up to 15 minutes each and 20 Ask AI questions a month. For a Business plan, the price and terms are agreed with you before you pay. Nothing is charged without your agreement.",
         ],
       },
       {
