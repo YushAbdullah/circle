@@ -250,6 +250,34 @@ export const api = {
     return body.text ?? "";
   },
 
+  /** Live voice call: send what was just said plus earlier turns; get back what was heard and the reply. */
+  async talk(id: string, uri: string, history: ChatMessage[]): Promise<{ question: string; reply: string; usage?: Usage }> {
+    const s = await loadSettings();
+    if (!s.serverUrl) throw new NotConfiguredError();
+    const turns = JSON.stringify(history.filter((m) => !m.content.startsWith("⚠️")).slice(-10));
+    if (Platform.OS === "web") {
+      const blob = await (await fetch(uri)).blob();
+      const form = new FormData();
+      form.append("history", turns);
+      form.append("audio", blob, `question${blob.type.includes("webm") ? ".webm" : ".m4a"}`);
+      return request(`/meetings/${id}/talk`, { method: "POST", body: form });
+    }
+    const res = await new FsFile(uri).upload(`${s.serverUrl}/meetings/${id}/talk`, {
+      uploadType: UploadType.MULTIPART,
+      fieldName: "audio",
+      mimeType: "audio/mp4",
+      parameters: { history: turns },
+      headers: s.token ? { Authorization: `Bearer ${s.token}` } : {},
+    });
+    let body: { question?: string; reply?: string; usage?: Usage; error?: string; limitReached?: boolean } = {};
+    try {
+      body = JSON.parse(res.body);
+    } catch {}
+    if (res.status === 401) return onUnauthorized();
+    if (res.status < 200 || res.status >= 300) throw new Error(body.error ?? `Server error ${res.status}`);
+    return { question: body.question ?? "", reply: body.reply ?? "", usage: body.usage };
+  },
+
   /** Audio source that reads `text` aloud. */
   async speechSource(text: string) {
     const s = await loadSettings();

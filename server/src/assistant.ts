@@ -7,11 +7,14 @@ import type { Meeting, Translation } from "./types.js";
 /** Keep the context within what free-tier models accept (roughly 25k tokens of transcript). */
 const MAX_TRANSCRIPT_CHARS = 100_000;
 
-function meetingContext(m: Meeting): string {
+/** Live voice calls use a much shorter context so replies come back in about a second. */
+const LIVE_TRANSCRIPT_CHARS = 10_000;
+
+function meetingContext(m: Meeting, maxChars = MAX_TRANSCRIPT_CHARS): string {
   const r = m.report;
   const utterances = r?.cleanedUtterances ?? m.transcript?.utterances ?? [];
   let transcript = formatTranscript({ languageCode: null, utterances }, m.speakerNames);
-  if (transcript.length > MAX_TRANSCRIPT_CHARS) transcript = transcript.slice(0, MAX_TRANSCRIPT_CHARS) + "\n[…transcript cut for length]";
+  if (transcript.length > maxChars) transcript = transcript.slice(0, maxChars) + "\n[…transcript cut for length]";
   const parts = [
     `Meeting: ${m.title} (${new Date(m.createdAt).toDateString()})`,
     r?.summary ? `Summary: ${r.summary}` : "",
@@ -27,15 +30,24 @@ const CHAT_SYSTEM = `You are CIXCLE, a friendly, sharp meeting assistant for a M
 
 - Answer from the meeting content. If something was not discussed, say so, then give your best advice anyway.
 - When asked for recommendations, give concrete, prioritised next steps, risks and questions to settle.
-- Reply in the language the user writes in (English, Malay or Manglish are all fine).
+- Reply in the language the user writes in (English, Malay or Manglish are all fine). If they ask to switch language (for example "can we talk in Malay?"), switch and keep using it.
 - Keep replies short and conversational (under about 120 words) because they may be read aloud. No markdown tables or headings; simple sentences or a short list.`;
 
-export async function chat(m: Meeting, messages: ChatMessage[]): Promise<string> {
+const LIVE_SYSTEM = `You are CIXCLE, a friendly, sharp meeting assistant for a Malaysian team, on a live voice call with the user about the meeting below. Everything you write is spoken aloud straight away.
+
+- Answer from the meeting content. If something was not discussed, say so briefly, then give your best advice.
+- Speak naturally, like a colleague on the phone: one to three short sentences, under about 50 words. No lists, markdown, emojis or headings.
+- Reply in the language the user speaks (English, Malay or Manglish). If they ask to switch language, switch and keep using it.
+- If the user's words look cut off or unclear, ask them briefly to repeat.`;
+
+export async function chat(m: Meeting, messages: ChatMessage[], opts: { live?: boolean } = {}): Promise<string> {
   if (!provider()) {
     if (demoMode()) return "This is demo mode. Add an AI key on the server (GROQ_API_KEY is free) and I can discuss your meetings.";
     throw new Error("No AI key on the server. Add GROQ_API_KEY (free) on Render.");
   }
-  const history = messages.slice(-12).map((x) => ({ role: x.role, content: String(x.content).slice(0, 4000) }));
+  const history = messages.slice(opts.live ? -10 : -12).map((x) => ({ role: x.role, content: String(x.content).slice(0, 4000) }));
+  if (opts.live)
+    return aiText(`${LIVE_SYSTEM}\n\n=== MEETING ===\n${meetingContext(m, LIVE_TRANSCRIPT_CHARS)}`, history, 220);
   return aiText(`${CHAT_SYSTEM}\n\n=== MEETING ===\n${meetingContext(m)}`, history);
 }
 
@@ -79,6 +91,22 @@ export async function translate(m: Meeting, language: string): Promise<Translati
     actionItems: out.actionItems,
     utterances: utterances.map((u, i) => byIndex.get(i) ?? u.text),
   };
+}
+
+/** Start speaking a reply with ElevenLabs, streamed so playback can begin before the whole clip is made. */
+export async function speakStream(text: string): Promise<Response> {
+  if (demoMode()) throw new Error("Voice replies need ELEVENLABS_API_KEY on the server.");
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(config.ttsVoiceId)}/stream?output_format=mp3_44100_64`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "xi-api-key": config.elevenLabsKey, Accept: "audio/mpeg" },
+      body: JSON.stringify({ text: text.slice(0, 2500), model_id: config.ttsModel }),
+      signal: AbortSignal.timeout(60_000),
+    },
+  );
+  if (!res.ok || !res.body) throw new Error(`Voice reply failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  return res;
 }
 
 /** Speak a reply with ElevenLabs text-to-speech. Returns MP3 bytes. */
