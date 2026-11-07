@@ -135,18 +135,32 @@ export function AskAI({ meetingId }: { meetingId: string }) {
 
   return (
     <View style={styles.chat}>
-      <View style={styles.header}>
-        <CircleWaves size={64} state={wave} />
-        <View style={{ flex: 1 }}>
-          <Text style={[type.headingMd, { color: colors.onInk }]}>CIXCLE AI</Text>
-          <Text style={[type.bodySm, { color: "#C9D3CB" }]}>{status}</Text>
+      {messages.length === 0 && !thinking && !hearing ? (
+        // Before the first question: a big glowing ring, like a voice assistant.
+        <View style={styles.heroHeader}>
+          {aiLeft !== null ? (
+            <View style={[styles.quota, { position: "absolute", top: space.md, right: space.md }]}>
+              <Text style={[type.caption, { color: colors.onInk }]}>{aiLeft} left</Text>
+            </View>
+          ) : null}
+          <CircleWaves size={170} state={wave} />
+          <Text style={[type.headingMd, { color: colors.onInk, marginTop: space.md }]}>CIXCLE AI</Text>
+          <Text style={[type.bodySm, { color: "#C9D3CB", textAlign: "center" }]}>{status}</Text>
         </View>
-        {aiLeft !== null ? (
-          <View style={styles.quota}>
-            <Text style={[type.caption, { color: colors.onInk }]}>{aiLeft} left</Text>
+      ) : (
+        <View style={styles.header}>
+          <CircleWaves size={64} state={wave} />
+          <View style={{ flex: 1 }}>
+            <Text style={[type.headingMd, { color: colors.onInk }]}>CIXCLE AI</Text>
+            <Text style={[type.bodySm, { color: "#C9D3CB" }]}>{status}</Text>
           </View>
-        ) : null}
-      </View>
+          {aiLeft !== null ? (
+            <View style={styles.quota}>
+              <Text style={[type.caption, { color: colors.onInk }]}>{aiLeft} left</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
 
       <View style={styles.thread}>
         {messages.length === 0 ? (
@@ -279,7 +293,8 @@ function ScrollChips({ onPick, disabled }: { onPick: (q: string) => void; disabl
 
 const styles = StyleSheet.create({
   chat: { backgroundColor: colors.surface, borderRadius: radius.lg, overflow: "hidden", ...elevation.e2 },
-  header: { flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: colors.ink, padding: space.md },
+  heroHeader: { alignItems: "center", backgroundColor: "#121514", paddingVertical: space.xl, paddingHorizontal: space.md },
+  header: { flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: "#121514", padding: space.md },
   quota: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: radius.full, backgroundColor: "rgba(255,255,255,0.12)" },
   thread: { padding: space.md, gap: space.md, backgroundColor: colors.surfaceMuted, minHeight: 220 },
   bubble: { borderRadius: 18, paddingVertical: 10, paddingHorizontal: 14 },
