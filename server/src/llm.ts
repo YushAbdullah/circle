@@ -62,16 +62,16 @@ export async function aiJson<S extends z.ZodObject>(
 }
 
 /** Plain-text chat reply. */
-export async function aiText(system: string, messages: ChatMessage[]): Promise<string> {
+export async function aiText(system: string, messages: ChatMessage[], maxTokens?: number): Promise<string> {
   const p = provider(system.length + messages.reduce((t, m) => t + m.content.length, 0));
   if (!p) throw new Error("No AI key on the server. Add GROQ_API_KEY (free) on Render.");
   if (p === "claude") {
-    const msg = await claude().messages.create({ model: config.claudeModel, max_tokens: 4000, system, messages });
+    const msg = await claude().messages.create({ model: config.claudeModel, max_tokens: maxTokens ?? 4000, system, messages });
     if (msg.stop_reason === "refusal") throw new Error("The AI declined to answer that.");
     return msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
   }
-  if (p === "groq") return (await groqChat(system, messages, false).catch((e) => { throw tooLongForGroq(e); })).trim();
-  return (await geminiChat(system, messages)).trim();
+  if (p === "groq") return (await groqChat(system, messages, false, maxTokens).catch((e) => { throw tooLongForGroq(e); })).trim();
+  return (await geminiChat(system, messages, undefined, maxTokens)).trim();
 }
 
 async function claudeJson<S extends z.ZodObject>(schema: S, system: string, user: string): Promise<z.infer<S>> {
@@ -104,7 +104,7 @@ async function timed(name: string, url: string, init: RequestInit, ms: number): 
   }
 }
 
-async function groqChat(system: string, messages: ChatMessage[], json: boolean): Promise<string> {
+async function groqChat(system: string, messages: ChatMessage[], json: boolean, maxTokens?: number): Promise<string> {
   const res = await timed(
     "Groq",
     "https://api.groq.com/openai/v1/chat/completions",
@@ -114,6 +114,7 @@ async function groqChat(system: string, messages: ChatMessage[], json: boolean):
       body: JSON.stringify({
         model: config.groqModel,
         temperature: json ? 0.2 : 0.5,
+        ...(maxTokens ? { max_tokens: maxTokens } : {}),
         ...(json ? { response_format: { type: "json_object" } } : {}),
         messages: [{ role: "system", content: system }, ...messages],
       }),
@@ -123,17 +124,22 @@ async function groqChat(system: string, messages: ChatMessage[], json: boolean):
   if (!res.ok) throw new Error(`Groq failed (${res.status}): ${(await res.text()).slice(0, 500)}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
   const choice = data.choices?.[0];
-  if (choice?.finish_reason === "length") throw new Error("The meeting is too long to process in one pass.");
+  if (choice?.finish_reason === "length" && json) throw new Error("The meeting is too long to process in one pass.");
   return choice?.message?.content ?? "";
 }
 
-async function geminiChat(system: string, messages: ChatMessage[], jsonSchema?: Record<string, unknown>): Promise<string> {
+async function geminiChat(
+  system: string,
+  messages: ChatMessage[],
+  jsonSchema?: Record<string, unknown>,
+  maxTokens?: number,
+): Promise<string> {
   // If the main model is busy or slow (common on the free tier), try the lighter one.
   const models = [...new Set([config.geminiModel, "gemini-flash-lite-latest"])];
   let lastError: unknown;
   for (const model of models) {
     try {
-      return await geminiOnce(model, system, messages, jsonSchema);
+      return await geminiOnce(model, system, messages, jsonSchema, maxTokens);
     } catch (e) {
       lastError = e;
       console.error(`Gemini ${model}: ${e instanceof Error ? e.message : e}`);
@@ -147,7 +153,12 @@ async function geminiOnce(
   system: string,
   messages: ChatMessage[],
   jsonSchema?: Record<string, unknown>,
+  maxTokens?: number,
 ): Promise<string> {
+  const generationConfig = {
+    ...(jsonSchema ? { responseMimeType: "application/json", responseJsonSchema: jsonSchema } : {}),
+    ...(maxTokens ? { maxOutputTokens: maxTokens } : {}),
+  };
   const res = await timed(
     "Gemini",
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -157,7 +168,7 @@ async function geminiOnce(
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-        ...(jsonSchema ? { generationConfig: { responseMimeType: "application/json", responseJsonSchema: jsonSchema } } : {}),
+        ...(Object.keys(generationConfig).length ? { generationConfig } : {}),
       }),
     },
     120_000,
@@ -169,7 +180,7 @@ async function geminiOnce(
   };
   if (data.promptFeedback?.blockReason) throw new Error(`Gemini declined this (${data.promptFeedback.blockReason}).`);
   const cand = data.candidates?.[0];
-  if (cand?.finishReason === "MAX_TOKENS") throw new Error("The meeting is too long to process in one pass.");
+  if (cand?.finishReason === "MAX_TOKENS" && jsonSchema) throw new Error("The meeting is too long to process in one pass.");
   return cand?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
 }
 

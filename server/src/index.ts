@@ -9,7 +9,8 @@ import { store, uploadTmpDir } from "./storage.js";
 import { compressAudio } from "./media.js";
 import { processMeeting } from "./pipeline.js";
 import { attachLive } from "./live.js";
-import { chat, speak, transcribeQuestion, translate } from "./assistant.js";
+import { chat, speakStream, transcribeQuestion, translate } from "./assistant.js";
+import { Readable } from "node:stream";
 import type { Meeting } from "./types.js";
 import { AuthError, deleteAccount, logIn, OWNER_ID, requireUser, signUp, tokenFrom, userIdFromToken } from "./auth.js";
 import { ContactError, submitContact } from "./contact.js";
@@ -305,6 +306,46 @@ app.post(
   }),
 );
 
+// Live voice call: one trip does it all. Multipart "audio" (what the user just said) and
+// "history" (JSON list of earlier turns). Returns { question, reply, usage }; question is "" if nothing was heard.
+app.post(
+  "/meetings/:id/talk",
+  questionUpload.single("audio"),
+  safe(async (req, res) => {
+    const m = getMeeting(String(req.params.id));
+    if (!m) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    if (!req.file) {
+      res.status(400).json({ error: "Attach what you said as the 'audio' field." });
+      return;
+    }
+    const limitError = await aiOverLimit(req.userId);
+    if (limitError) {
+      res.status(403).json({ error: limitError, limitReached: true });
+      return;
+    }
+    const ext = path.extname(req.file.originalname || "") || ".m4a";
+    const question = await transcribeQuestion(req.file.buffer, guessMime(req.file.mimetype, ext));
+    if (!question) {
+      res.json({ question: "", reply: "" });
+      return;
+    }
+    let history: { role?: string; content?: unknown }[] = [];
+    try {
+      const parsed = JSON.parse(String(req.body?.history ?? "[]"));
+      if (Array.isArray(parsed)) history = parsed;
+    } catch {}
+    const clean = history
+      .filter((x) => (x.role === "user" || x.role === "assistant") && typeof x.content === "string" && !String(x.content).startsWith("⚠️"))
+      .map((x) => ({ role: x.role as "user" | "assistant", content: String(x.content) }));
+    const reply = await chat(m, [...clean, { role: "user", content: question }], { live: true });
+    await countAiQuestion(req.userId);
+    res.json({ question, reply, usage: await getUsage(req.userId) });
+  }),
+);
+
 // Read a reply aloud: GET /tts?text=... returns MP3.
 app.get(
   "/tts",
@@ -314,10 +355,16 @@ app.get(
       res.status(400).json({ error: "Missing text." });
       return;
     }
-    const mp3 = await speak(text);
+    // Stream the voice so the phone starts playing within a moment instead of waiting for the whole clip.
+    const voice = await speakStream(text);
     res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Content-Length", String(mp3.length));
-    res.end(mp3);
+    res.setHeader("Cache-Control", "no-store");
+    const stream = Readable.fromWeb(voice.body as import("node:stream/web").ReadableStream);
+    stream.on("error", (e) => {
+      console.error("Voice stream failed", e);
+      res.destroy();
+    });
+    stream.pipe(res);
   }),
 );
 
