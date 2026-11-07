@@ -22,7 +22,16 @@ const SUGGESTIONS = [
   "Draft a follow-up message",
 ];
 
-/** "Ask CIXCLE": talk with the AI about this meeting, by typing or by voice. */
+/** Hands-free listening: how loud counts as talking, and how long a pause ends a turn. */
+const PAUSE_MS = 1300;
+const MIN_SPEECH_MS = 250;
+const NO_SPEECH_MS = 20000;
+const MAX_TURN_MS = 60000;
+
+/**
+ * "Ask CIXCLE": talk with the AI about this meeting, by typing or by voice.
+ * Live talk is hands-free, like a call: it listens, notices when you pause, answers out loud, then listens again.
+ */
 export function AskAI({ meetingId }: { meetingId: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -30,13 +39,20 @@ export function AskAI({ meetingId }: { meetingId: string }) {
   const [hearing, setHearing] = useState(false);
   const [voiceReplies, setVoiceReplies] = useState(true);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+  const [live, setLive] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recState = useAudioRecorderState(recorder, 200);
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  const recState = useAudioRecorderState(recorder, 100);
   const player = useAudioPlayer(null);
   const playerStatus = useAudioPlayerStatus(player);
   const messagesRef = useRef<ChatMessage[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
+
+  // Refs so the listening loop always sees the latest values.
+  const liveRef = useRef(false);
+  const busyRef = useRef(false); // starting or stopping the microphone
+  const vad = useRef({ started: 0, speech: false, loudSince: 0, lastLoud: 0, floor: -160 });
 
   const refreshUsage = () => api.usage().then(setUsage).catch(() => {});
   useEffect(() => {
@@ -46,9 +62,52 @@ export function AskAI({ meetingId }: { meetingId: string }) {
   const aiLeft = usage?.limited && usage.aiMax ? Math.max(0, usage.aiMax - (usage.aiUsed ?? 0)) : null;
   const outOfQuestions = aiLeft === 0;
 
+  const endLive = (why: string | null = null, keepSpeaking = false) => {
+    liveRef.current = false;
+    setLive(false);
+    setNote(why);
+    if (!keepSpeaking) stopSpeaking();
+    if (recorder.isRecording) stopMic(false);
+  };
+
   useEffect(() => {
-    if (!playerStatus.playing && playerStatus.didJustFinish) setSpeakingIndex(null);
+    // The last free answer is still read out; live talk just stops after it.
+    if (outOfQuestions && liveRef.current) endLive(null, true);
+  }, [outOfQuestions]);
+
+  // When an answer finishes playing during live talk, listen again.
+  useEffect(() => {
+    if (!playerStatus.playing && playerStatus.didJustFinish) {
+      setSpeakingIndex(null);
+      if (liveRef.current) startMic();
+    }
   }, [playerStatus.playing, playerStatus.didJustFinish]);
+
+  // If a spoken answer never starts (no voice key, bad network), don't get stuck: carry on listening.
+  const startedPlaying = useRef(false);
+  useEffect(() => {
+    if (playerStatus.playing) startedPlaying.current = true;
+  }, [playerStatus.playing]);
+  useEffect(() => {
+    if (speakingIndex === null) return;
+    startedPlaying.current = false;
+    const t = setTimeout(() => {
+      if (startedPlaying.current) return;
+      player.pause();
+      setSpeakingIndex(null);
+      if (liveRef.current) startMic();
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [speakingIndex]);
+
+  // Stop everything when leaving the screen.
+  useEffect(
+    () => () => {
+      liveRef.current = false;
+      if (recorder.isRecording) recorder.stop().catch(() => {});
+    },
+    [],
+  );
 
   const speak = async (text: string, index: number) => {
     try {
@@ -58,6 +117,7 @@ export function AskAI({ meetingId }: { meetingId: string }) {
       setSpeakingIndex(index);
     } catch {
       setSpeakingIndex(null);
+      if (liveRef.current) startMic();
     }
   };
 
@@ -70,6 +130,7 @@ export function AskAI({ meetingId }: { meetingId: string }) {
     const q = text.trim();
     if (!q || thinking || outOfQuestions) return;
     setDraft("");
+    setNote(null);
     const next = [...messagesRef.current, { role: "user" as const, content: q }];
     messagesRef.current = next;
     setMessages(next);
@@ -80,58 +141,145 @@ export function AskAI({ meetingId }: { meetingId: string }) {
       const withReply = [...next, { role: "assistant" as const, content: reply }];
       messagesRef.current = withReply;
       setMessages(withReply);
-      if (voiceReplies) speak(reply, withReply.length - 1);
+      if (liveRef.current || voiceReplies) speak(reply, withReply.length - 1);
     } catch (e) {
       const withErr = [...next, { role: "assistant" as const, content: `⚠️ ${(e as Error).message}` }];
       messagesRef.current = withErr;
       setMessages(withErr);
       refreshUsage();
+      if (liveRef.current) endLive();
     } finally {
       setThinking(false);
     }
   };
 
-  const toggleMic = async () => {
-    if (outOfQuestions) return;
-    if (recState.isRecording) {
+  const startMic = async () => {
+    if (busyRef.current || recorder.isRecording) return;
+    busyRef.current = true;
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        endLive();
+        showAlert("Microphone needed", "Allow microphone access in iPhone Settings to talk with CIXCLE AI.");
+        return;
+      }
+      stopSpeaking();
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      vad.current = { started: Date.now(), speech: false, loudSince: 0, lastLoud: 0, floor: -160 };
+    } catch (e) {
+      endLive();
+      showAlert("Couldn't start the microphone", (e as Error).message);
+    } finally {
+      busyRef.current = false;
+    }
+  };
+
+  /** Stop the microphone; when `submit`, turn what was said into a question and send it. */
+  const stopMic = async (submit: boolean) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    let uri: string | null = null;
+    try {
       await recorder.stop();
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
-      const uri = recorder.uri;
-      if (!uri) return;
-      setHearing(true);
-      try {
-        const text = await api.transcribeQuestion(uri);
-        if (text) await send(text);
-        else showAlert("Didn't catch that", "Try speaking a little closer to the phone.");
-      } catch (e) {
-        showAlert("Couldn't hear the question", (e as Error).message);
-      } finally {
-        setHearing(false);
-      }
-      return;
+      uri = recorder.uri;
+    } catch {
+      // Already stopped.
+    } finally {
+      busyRef.current = false;
     }
-    const perm = await requestRecordingPermissionsAsync();
-    if (!perm.granted) {
-      showAlert("Microphone needed", "Allow microphone access in iPhone Settings to ask by voice.");
-      return;
+    if (!submit || !uri) return;
+    setHearing(true);
+    try {
+      const text = await api.transcribeQuestion(uri);
+      setHearing(false);
+      if (text) await send(text);
+      else if (liveRef.current) startMic();
+      else showAlert("Didn't catch that", "Try speaking a little closer to the phone.");
+    } catch (e) {
+      setHearing(false);
+      if (liveRef.current) endLive();
+      showAlert("Couldn't hear the question", (e as Error).message);
     }
+  };
+
+  // Live talk: watch the microphone level, and end the turn when you pause after speaking.
+  useEffect(() => {
+    if (!liveRef.current || !recState.isRecording || busyRef.current) return;
+    const v = vad.current;
+    const now = Date.now();
+    const db = recState.metering ?? -160;
+    if (db > -159) {
+      // Track the room's background level, so a noisy room needs a louder voice.
+      v.floor = v.floor <= -159 ? db : v.speech ? v.floor : v.floor * 0.95 + Math.min(db, v.floor + 6) * 0.05;
+    }
+    const threshold = Math.min(-26, Math.max(-48, v.floor + 14));
+    if (db > threshold) {
+      if (!v.loudSince) v.loudSince = now;
+      v.lastLoud = now;
+      if (now - v.loudSince >= MIN_SPEECH_MS) v.speech = true;
+    } else {
+      v.loudSince = 0;
+    }
+    if (v.speech && now - v.lastLoud > PAUSE_MS) stopMic(true);
+    else if (now - v.started > MAX_TURN_MS) stopMic(v.speech);
+    else if (!v.speech && now - v.started > NO_SPEECH_MS) endLive("Live talk paused because it was quiet. Tap Start live talk to carry on.");
+  }, [recState.durationMillis, recState.metering, recState.isRecording]);
+
+  const startLive = () => {
+    if (outOfQuestions) return;
+    setNote(null);
+    liveRef.current = true;
+    setLive(true);
+    startMic();
+  };
+
+  /** Tap while the AI is talking: cut it short and listen to you instead. */
+  const interrupt = () => {
+    if (!liveRef.current || speakingIndex === null) return;
     stopSpeaking();
-    await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-    await recorder.prepareToRecordAsync();
-    recorder.record();
+    startMic();
   };
 
   const listening = recState.isRecording;
   const wave: WaveState = listening ? "listening" : thinking || hearing ? "thinking" : speakingIndex !== null ? "speaking" : "idle";
-  const status = listening
-    ? "Listening… tap ■ when you finish"
-    : hearing
-      ? "Hearing your question…"
-      : thinking
-        ? "Thinking…"
-        : speakingIndex !== null
-          ? "Speaking…"
-          : "Ask anything about this meeting";
+  const status = live
+    ? listening
+      ? vad.current.speech
+        ? "Listening… pause when you're done"
+        : "Listening… just talk"
+      : hearing
+        ? "Hearing you…"
+        : thinking
+          ? "Thinking…"
+          : speakingIndex !== null
+            ? "Speaking… tap the circle to interrupt"
+            : "Live talk on"
+    : listening
+      ? "Listening…"
+      : hearing
+        ? "Hearing your question…"
+        : thinking
+          ? "Thinking…"
+          : speakingIndex !== null
+            ? "Speaking…"
+            : "Talk hands-free or type below";
+
+  const liveButton = (big: boolean) =>
+    outOfQuestions ? null : (
+      <Pressable
+        onPress={() => (live ? endLive() : startLive())}
+        style={({ pressed }) => [big ? styles.livePill : styles.liveSmall, live && styles.liveOn, pressed && { opacity: 0.8 }]}
+        accessibilityRole="button"
+        accessibilityLabel={live ? "End live talk" : "Start live talk"}
+      >
+        <Text style={[big ? type.title : type.label, { color: live ? colors.onInk : colors.onPrimary }]}>
+          {live ? (big ? "■  End live talk" : "■ End") : big ? "🎙  Start live talk" : "🎙 Live"}
+        </Text>
+      </Pressable>
+    );
 
   return (
     <View style={styles.chat}>
@@ -143,31 +291,40 @@ export function AskAI({ meetingId }: { meetingId: string }) {
               <Text style={[type.caption, { color: colors.onInk }]}>{aiLeft} left</Text>
             </View>
           ) : null}
-          <CircleWaves size={170} state={wave} />
+          <Pressable onPress={live ? interrupt : startLive} accessibilityLabel={live ? "Interrupt" : "Start live talk"}>
+            <CircleWaves size={170} state={wave} />
+          </Pressable>
           <Text style={[type.headingMd, { color: colors.onInk, marginTop: space.md }]}>CIXCLE AI</Text>
           <Text style={[type.bodySm, { color: "#C9D3CB", textAlign: "center" }]}>{status}</Text>
+          <View style={{ marginTop: space.md }}>{liveButton(true)}</View>
         </View>
       ) : (
         <View style={styles.header}>
-          <CircleWaves size={64} state={wave} />
+          <Pressable onPress={interrupt} disabled={speakingIndex === null || !live} accessibilityLabel="Interrupt">
+            <CircleWaves size={64} state={wave} />
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={[type.headingMd, { color: colors.onInk }]}>CIXCLE AI</Text>
             <Text style={[type.bodySm, { color: "#C9D3CB" }]}>{status}</Text>
           </View>
-          {aiLeft !== null ? (
-            <View style={styles.quota}>
-              <Text style={[type.caption, { color: colors.onInk }]}>{aiLeft} left</Text>
-            </View>
-          ) : null}
+          <View style={{ alignItems: "flex-end", gap: 6 }}>
+            {aiLeft !== null ? (
+              <View style={styles.quota}>
+                <Text style={[type.caption, { color: colors.onInk }]}>{aiLeft} left</Text>
+              </View>
+            ) : null}
+            {liveButton(false)}
+          </View>
         </View>
       )}
+      {note ? <Text style={[type.caption, styles.note]}>{note}</Text> : null}
 
       <View style={styles.thread}>
         {messages.length === 0 ? (
           <AiRow>
             <View style={[styles.bubble, styles.aiBubble]}>
               <Text style={[type.body, { color: colors.text }]}>
-                Hi! I've read this meeting. Ask me for a recap, next steps or advice, in English, Malay or Manglish. Type below or tap 🎙 to talk.
+                Hi! I've read this meeting. Ask me for a recap, next steps or advice, in English, Malay or Manglish. Tap Start live talk and just speak, I'll answer out loud. Or type below.
               </Text>
             </View>
           </AiRow>
@@ -218,16 +375,16 @@ export function AskAI({ meetingId }: { meetingId: string }) {
         </View>
       ) : (
         <>
-          <ScrollChips onPick={send} disabled={thinking || hearing || listening} />
+          <ScrollChips onPick={send} disabled={thinking || hearing || live} />
           <View style={styles.composer}>
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder={listening ? "Listening…" : "Message CIXCLE AI"}
+              placeholder={live ? "Live talk on, just speak" : "Message CIXCLE AI"}
               placeholderTextColor={colors.textSubtle}
               style={[type.body, styles.input]}
               multiline
-              editable={!listening}
+              editable={!live}
               onSubmitEditing={() => send(draft)}
             />
             {draft.trim() ? (
@@ -236,12 +393,11 @@ export function AskAI({ meetingId }: { meetingId: string }) {
               </Pressable>
             ) : (
               <Pressable
-                onPress={toggleMic}
-                disabled={hearing || thinking}
-                style={[styles.round, { backgroundColor: listening ? colors.danger : colors.primary }, (hearing || thinking) && { opacity: 0.4 }]}
-                accessibilityLabel={listening ? "Stop and send" : "Ask by voice"}
+                onPress={() => (live ? endLive() : startLive())}
+                style={[styles.round, { backgroundColor: live ? colors.danger : colors.primary }]}
+                accessibilityLabel={live ? "End live talk" : "Start live talk"}
               >
-                <Text style={[type.title, { color: listening ? colors.onDanger : colors.onPrimary }]}>{listening ? "■" : "🎙"}</Text>
+                <Text style={[type.title, { color: live ? colors.onDanger : colors.onPrimary }]}>{live ? "■" : "🎙"}</Text>
               </Pressable>
             )}
           </View>
@@ -335,5 +491,9 @@ const styles = StyleSheet.create({
   round: { width: 42, height: 42, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
   voiceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.md, paddingBottom: space.sm },
   limit: { margin: space.md, padding: space.md, borderRadius: radius.md, backgroundColor: colors.surfaceTint },
+  livePill: { backgroundColor: colors.primary, borderRadius: radius.full, paddingVertical: 12, paddingHorizontal: 24 },
+  liveSmall: { backgroundColor: colors.primary, borderRadius: radius.full, paddingVertical: 6, paddingHorizontal: 12 },
+  liveOn: { backgroundColor: colors.danger },
+  note: { paddingHorizontal: space.md, paddingVertical: space.sm, backgroundColor: colors.surfaceTint, color: colors.text },
   limitBtn: { marginTop: space.md, alignSelf: "flex-start", backgroundColor: colors.ink, borderRadius: radius.sm, paddingVertical: 10, paddingHorizontal: 16 },
 });
