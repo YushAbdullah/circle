@@ -34,8 +34,20 @@ export function AskAI({ meetingId }: { meetingId: string }) {
   const refreshUsage = () => api.usage().then(setUsage).catch(() => {});
   useEffect(() => {
     refreshUsage();
-    api.health().catch(() => {}); // Wake the server early so the first answer is quick.
-  }, []);
+    // Bring back the saved conversation, so the chat (and the AI) carries on where you left off.
+    api
+      .get(meetingId)
+      .then((m) => {
+        if (m.chat?.length && !messagesRef.current.length) setThread(m.chat);
+      })
+      .catch(() => {});
+  }, [meetingId]);
+
+  const startFresh = () => {
+    stopSpeaking();
+    setThread([]);
+    api.clearChat(meetingId).catch(() => {});
+  };
 
   const aiLeft = usage?.limited && usage.aiMax ? Math.max(0, usage.aiMax - (usage.aiUsed ?? 0)) : null;
   const outOfQuestions = aiLeft === 0;
@@ -239,7 +251,13 @@ export function AskAI({ meetingId }: { meetingId: string }) {
       )}
 
       <View style={styles.voiceRow}>
-        <Text style={type.caption}>Read typed answers aloud</Text>
+        {messages.length ? (
+          <Pressable onPress={startFresh} hitSlop={8} accessibilityRole="button">
+            <Text style={[type.caption, { color: colors.success }]}>↺ Start fresh</Text>
+          </Pressable>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        <Text style={[type.caption, { marginRight: space.sm }]}>Read typed answers aloud</Text>
         <Switch
           value={voiceReplies}
           onValueChange={(v) => {
