@@ -8,7 +8,7 @@ import { store } from "./storage.js";
  * (formsubmit.co: no account or API key; the first message sends a one-time
  * "Activate" email that the owner must click). The address is never shown to users.
  */
-export const TOPICS = ["Question or feedback", "Privacy / PDPA request", "Delete my account", "Pro or Team plan", "Report a problem"];
+export const TOPICS = ["Question or feedback", "Privacy / PDPA request", "Delete my account", "Business plan", "Report a problem"];
 
 export class ContactError extends Error {
   constructor(

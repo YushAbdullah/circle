@@ -4,7 +4,7 @@ import { api, loadSettings } from "../api";
 import { Button, Card } from "../components/ui";
 import { colors, fonts, radius, space, type } from "../theme";
 
-const TOPICS = ["Question or feedback", "Privacy / PDPA request", "Delete my account", "Pro or Team plan", "Report a problem"];
+const TOPICS = ["Question or feedback", "Privacy / PDPA request", "Delete my account", "Business plan", "Report a problem"];
 
 /** Contact form: the server emails it to the CIXCLE owner. Works without logging in. */
 export default function Contact() {

@@ -12,7 +12,7 @@ export default function RootLayout() {
 
   // Not logged in yet: show the log-in screen.
   useEffect(() => {
-    if (!loaded || first === "login" || first === "info" || first === "contact") return;
+    if (!loaded || first === "login" || first === "info" || first === "contact" || first === "business") return;
     loadSettings().then((s) => {
       if (!s.token) router.replace("/login");
     });
@@ -43,6 +43,7 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ title: "Log in", headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="info/[page]" options={{ title: "" }} />
         <Stack.Screen name="contact" options={{ title: "Contact us" }} />
+        <Stack.Screen name="business" options={{ title: "Business plan" }} />
         <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
       </Stack>
     </>

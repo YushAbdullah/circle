@@ -47,27 +47,21 @@ export default function Home() {
   const openActions = meetings.reduce((t, m) => t + (m.actionCount ?? 0), 0);
 
   const askDelete = (item: MeetingListItem) =>
-    showAlert(item.title, "Delete this meeting?", [
-      ...(item.audioDeleted
-        ? []
-        : [
-            {
-              text: "Delete recording only",
-              onPress: async () => {
-                await api.deleteAudio(item.id).catch((e) => showAlert("Couldn't delete", (e as Error).message));
-                load(true);
-              },
-            },
-          ]),
+    showAlert("Delete this meeting?", `"${item.title}" will be permanently deleted: recording, transcript and report. This can't be undone.`, [
+      { text: "Cancel", style: "cancel" as const },
       {
-        text: "Delete whole meeting",
+        text: "Delete",
         style: "destructive" as const,
         onPress: async () => {
-          await api.remove(item.id).catch((e) => showAlert("Couldn't delete", (e as Error).message));
+          setMeetings((list) => list.filter((m) => m.id !== item.id));
+          try {
+            await api.remove(item.id);
+          } catch (e) {
+            showAlert("Couldn't delete", (e as Error).message);
+          }
           load(true);
         },
       },
-      { text: "Cancel", style: "cancel" as const },
     ]);
 
   const uploadFile = async () => {
@@ -130,7 +124,7 @@ export default function Home() {
           </View>
         }
         ListEmptyComponent={!error && !loading ? <Empty text="No meetings yet. Tap Record to start." /> : undefined}
-        ListFooterComponent={meetings.length ? <Text style={[type.caption, { textAlign: "center", marginTop: space.md }]}>Press and hold a meeting to delete it.</Text> : undefined}
+        ListFooterComponent={meetings.length ? <Text style={[type.caption, { textAlign: "center", marginTop: space.md }]}>Tap 🗑 to delete a meeting.</Text> : undefined}
         renderItem={({ item }) => (
           <Pressable
             onPress={() => router.push({ pathname: "/meeting/[id]", params: { id: item.id } })}
@@ -165,7 +159,18 @@ export default function Home() {
                 </View>
               ) : null}
             </View>
-            <StatusPill status={item.status} />
+            <View style={{ alignItems: "flex-end", gap: space.sm }}>
+              <StatusPill status={item.status} />
+              <Pressable
+                onPress={() => askDelete(item)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${item.title}`}
+                style={({ pressed }) => [styles.trash, pressed && { opacity: 0.5 }]}
+              >
+                <Text style={{ fontSize: 16 }}>🗑</Text>
+              </Pressable>
+            </View>
           </Pressable>
         )}
       />
@@ -188,6 +193,7 @@ function HeroStat({ value, label }: { value: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  trash: { padding: 6, borderRadius: radius.full, backgroundColor: colors.surfaceMuted },
   hero: { backgroundColor: colors.ink, borderRadius: radius.lg, padding: space.lg, ...elevation.e2 },
   heroStats: {
     flexDirection: "row",

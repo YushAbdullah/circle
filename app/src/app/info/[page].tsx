@@ -1,7 +1,7 @@
 import { ScrollView, Text, View } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { PAGES, type PageKey } from "../../legal";
-import { Card } from "../../components/ui";
+import { Button, Card } from "../../components/ui";
 import { space, type } from "../../theme";
 
 /** About, Plans, Terms, Privacy and AI pages (open without logging in). */
@@ -27,6 +27,9 @@ export default function InfoPage() {
           </View>
         </Card>
       ))}
+      {page === "plans" ? (
+        <Button label="Get the Business plan: fill in the form" variant="ink" onPress={() => router.push("/business")} />
+      ) : null}
     </ScrollView>
   );
 }
