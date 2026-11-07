@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../api";
 import { Button, Card, Logo } from "../components/ui";
-import { colors, fonts, radius, space, type } from "../theme";
+import { colors, elevation, fonts, radius, space, type } from "../theme";
 
 type Mode = "login" | "signup";
 
@@ -50,10 +50,29 @@ export default function Login() {
     <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Logo />
-          <Text style={[type.headingLg, { marginTop: space.lg }]}>{signup ? "Create your account" : "Welcome back"}</Text>
+          <View style={styles.topBar}>
+            <Logo />
+            <Pressable
+              onPress={() => {
+                setMode(signup ? "login" : "signup");
+                setError(null);
+              }}
+              hitSlop={12}
+              accessibilityRole="button"
+            >
+              <Text style={[type.label, { color: colors.textMuted }]}>{signup ? "Log in" : "Create account"}</Text>
+            </Pressable>
+          </View>
+
+          {signup ? <Hero /> : null}
+
+          <Text style={[type.headingLg, { marginTop: signup ? space.xl : space.lg }]}>
+            {signup ? "Create your account" : "Welcome back"}
+          </Text>
           <Text style={[type.body, { marginTop: space.sm, marginBottom: space.lg }]}>
-            Record meetings in Malay, English or Manglish. CIXCLE writes the transcript and the report.
+            {signup
+              ? "It's free and takes a minute. No app to install."
+              : "Log in to see your meetings, transcripts and reports."}
           </Text>
 
           <Card>
@@ -141,6 +160,45 @@ export default function Login() {
   );
 }
 
+const FEATURES = [
+  "Live captions while people talk, even in slang",
+  "Full transcript showing who said what",
+  "AI report with decisions and next steps",
+  "Translate to English or Bahasa Melayu",
+  "Works in your phone browser, no app to install",
+];
+
+function Hero() {
+  return (
+    <View style={{ marginTop: space.xl }}>
+      <View style={styles.chips}>
+        <View style={styles.chip}>
+          <Text style={styles.chipBig}>100%</Text>
+          <Text style={type.bodySm}>free to start</Text>
+        </View>
+        <View style={[styles.chip, { transform: [{ rotate: "1.2deg" }] }]}>
+          <Text style={styles.chipBig}>1 tap</Text>
+          <Text style={type.bodySm}>to record a meeting</Text>
+        </View>
+      </View>
+      <Text style={styles.heroTitle}>Never lose track of a meeting again.</Text>
+      <View style={styles.underline} />
+      <Text style={[type.body, styles.heroLead]}>
+        CIXCLE records your meeting, writes the transcript and gives you a clear AI report. Malay, English and Manglish
+        all okay.
+      </Text>
+      <View style={{ gap: space.sm + 4, marginTop: space.lg }}>
+        {FEATURES.map((f) => (
+          <View key={f} style={styles.featureRow}>
+            <Text style={styles.check}>✓</Text>
+            <Text style={[type.body, { color: colors.text, flex: 1 }]}>{f}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function Field({ label, hint, ...props }: { label: string; hint?: string } & React.ComponentProps<typeof TextInput>) {
   return (
     <View style={{ marginBottom: space.md }}>
@@ -152,6 +210,24 @@ function Field({ label, hint, ...props }: { label: string; hint?: string } & Rea
 }
 
 const styles = StyleSheet.create({
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm + 4, marginBottom: space.lg },
+  chip: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    ...elevation.e1,
+  },
+  chipBig: { fontFamily: fonts.semibold, fontSize: 22, color: colors.text },
+  heroTitle: { fontFamily: fonts.semibold, fontSize: 44, lineHeight: 48, letterSpacing: -1.2, color: colors.text },
+  underline: { height: 6, width: 190, borderRadius: 3, backgroundColor: colors.primary, marginTop: 6 },
+  heroLead: { fontSize: 18, lineHeight: 28, marginTop: space.md },
+  featureRow: { flexDirection: "row", gap: space.sm + 4, alignItems: "flex-start" },
+  check: { fontFamily: fonts.semibold, fontSize: 18, lineHeight: 24, color: colors.accent, width: 20 },
   agreeRow: { flexDirection: "row", gap: space.sm, alignItems: "flex-start", marginBottom: space.md },
   box: {
     width: 22,
