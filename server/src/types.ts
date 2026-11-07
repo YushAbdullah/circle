@@ -66,4 +66,6 @@ export interface Meeting {
   audioDeleted?: boolean;
   /** Cached translations, keyed by language name. Cleared when the report is rewritten. */
   translations?: Record<string, Translation>;
+  /** Ask AI conversation about this meeting (typed and live talk), kept so the AI remembers it next time. */
+  chat?: { role: "user" | "assistant"; content: string }[];
 }

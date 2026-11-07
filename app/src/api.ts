@@ -59,6 +59,8 @@ export interface MeetingListItem {
 
 export interface Meeting extends Omit<MeetingListItem, "summary" | "languages" | "actionCount"> {
   translations?: Record<string, Translation>;
+  /** Saved Ask AI conversation for this meeting. */
+  chat?: ChatMessage[];
   transcript: { languageCode: string | null; utterances: Utterance[] } | null;
   report: Report | null;
   liveText: string | null;
@@ -211,6 +213,7 @@ export const api = {
     }),
   reprocess: (id: string) => request<{ ok: boolean }>(`/meetings/${id}/reprocess`, { method: "POST" }),
   remove: (id: string) => request<void>(`/meetings/${id}`, { method: "DELETE" }),
+  clearChat: (id: string) => request<Meeting>(`/meetings/${id}/chat`, { method: "DELETE" }),
   deleteAudio: (id: string) => request<Meeting>(`/meetings/${id}/audio`, { method: "DELETE" }),
   chat: (id: string, messages: ChatMessage[]) =>
     request<{ reply: string; usage?: Usage }>(`/meetings/${id}/chat`, {

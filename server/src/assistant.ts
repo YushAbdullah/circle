@@ -125,8 +125,15 @@ export async function speak(text: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-/** Transcribe a short spoken question (no speaker labels needed). */
+/** Transcribe a short spoken question (no speaker labels needed). Groq's Whisper is free and very fast; ElevenLabs is the backup. */
 export async function transcribeQuestion(bytes: Buffer, mime: string): Promise<string> {
+  if (config.groqKey) {
+    try {
+      return await groqWhisper(bytes, mime);
+    } catch (e) {
+      console.error(`Groq Whisper failed, trying ElevenLabs: ${e instanceof Error ? e.message : e}`);
+    }
+  }
   if (demoMode()) return "What should I do next?";
   const form = new FormData();
   form.append("model_id", config.sttModel);
@@ -138,6 +145,26 @@ export async function transcribeQuestion(bytes: Buffer, mime: string): Promise<s
     signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) throw new Error(`Could not hear the question (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  const data = (await res.json()) as { text?: string };
+  return (data.text ?? "").trim();
+}
+
+async function groqWhisper(bytes: Buffer, mime: string): Promise<string> {
+  const ext = mime.includes("webm") ? "webm" : mime.includes("wav") ? "wav" : mime.includes("mpeg") ? "mp3" : "m4a";
+  const form = new FormData();
+  form.append("model", "whisper-large-v3-turbo");
+  form.append("response_format", "json");
+  form.append("temperature", "0");
+  // A hint helps Whisper with Malaysian code-switching.
+  form.append("prompt", "Perbualan tentang mesyuarat, in English, Bahasa Melayu or Manglish lah.");
+  form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), `question.${ext}`);
+  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${config.groqKey}` },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`(${res.status}) ${(await res.text()).slice(0, 300)}`);
   const data = (await res.json()) as { text?: string };
   return (data.text ?? "").trim();
 }

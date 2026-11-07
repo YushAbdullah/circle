@@ -263,6 +263,13 @@ const safe =
     }
   };
 
+/** Remember the Ask AI conversation on the meeting, so it is there next time and the AI keeps the context. */
+function rememberChat(id: string, turns: { role: "user" | "assistant"; content: string }[]) {
+  const m = getMeeting(id);
+  if (!m) return;
+  updateMeeting(id, { chat: [...(m.chat ?? []), ...turns].slice(-60) }).catch((e) => console.error("Saving chat failed", e));
+}
+
 // Ask CIRCLE: chat about a meeting. Body: { messages: [{ role: "user" | "assistant", content }] }
 app.post(
   "/meetings/:id/chat",
@@ -288,6 +295,20 @@ app.post(
     const reply = await chat(m, clean);
     await countAiQuestion(req.userId);
     res.json({ reply, usage: await getUsage(req.userId) });
+    rememberChat(m.id, [clean[clean.length - 1], { role: "assistant", content: reply }]);
+  }),
+);
+
+// Start a fresh Ask AI conversation for this meeting.
+app.delete(
+  "/meetings/:id/chat",
+  safe(async (req, res) => {
+    const m = getMeeting(String(req.params.id));
+    if (!m) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json(await updateMeeting(m.id, { chat: [] }));
   }),
 );
 
@@ -343,6 +364,10 @@ app.post(
     const reply = await chat(m, [...clean, { role: "user", content: question }], { live: true });
     await countAiQuestion(req.userId);
     res.json({ question, reply, usage: await getUsage(req.userId) });
+    rememberChat(m.id, [
+      { role: "user", content: question },
+      { role: "assistant", content: reply },
+    ]);
   }),
 );
 

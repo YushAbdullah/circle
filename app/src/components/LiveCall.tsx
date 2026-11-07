@@ -81,6 +81,7 @@ export function LiveCall({
         return;
       }
       player.pause();
+      if (Platform.OS === "web" && typeof window !== "undefined") window.speechSynthesis?.cancel();
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -131,7 +132,10 @@ export function LiveCall({
     }
   };
 
+  const lastReply = useRef("");
+
   const say = async (text: string) => {
+    lastReply.current = text;
     try {
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
       startedPlaying.current = false;
@@ -139,22 +143,60 @@ export function LiveCall({
       player.play();
       go("speaking");
     } catch {
+      phoneVoice(text);
+    }
+  };
+
+  /** Free backup voice built into the phone, used if the ElevenLabs voice can't play (for example, its monthly allowance ran out). */
+  const phoneVoice = (text: string) => {
+    const synth = Platform.OS === "web" && typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    if (!synth) return startMic();
+    try {
+      player.pause();
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const malay = (text.toLowerCase().match(/\b(saya|awak|anda|kita|boleh|tak|tidak|ini|itu|dan|untuk|yang|dengan|akan|sudah|ada|mesyuarat)\b/g) ?? []).length >= 2;
+      u.lang = malay ? "ms-MY" : "en-US";
+      const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith(malay ? "ms" : "en"));
+      if (voice) u.voice = voice;
+      u.rate = 1.05;
+      u.onend = () => {
+        if (phaseRef.current === "speaking") startMic();
+      };
+      u.onerror = u.onend;
+      startedPlaying.current = true;
+      go("speaking");
+      synth.speak(u);
+      // Some phones never report the end of speech: carry on listening after roughly the time it takes to say it.
+      const words = text.split(/\s+/).length;
+      const myTurn = text;
+      setTimeout(() => {
+        if (phaseRef.current === "speaking" && lastReply.current === myTurn) {
+          synth.cancel();
+          startMic();
+        }
+      }, 3000 + words * 450);
+    } catch {
       startMic();
     }
   };
 
   // When the answer finishes, listen again.
   useEffect(() => {
-    if (playerStatus.playing) startedPlaying.current = true;
     if (!playerStatus.playing && playerStatus.didJustFinish && phaseRef.current === "speaking") startMic();
   }, [playerStatus.playing, playerStatus.didJustFinish]);
 
-  // If a spoken answer never starts (voice service down), carry on listening instead of getting stuck.
+  // Count the answer as started only once sound is actually coming out (a failed voice can still report "playing").
+  useEffect(() => {
+    if (playerStatus.playing && playerStatus.currentTime > 0) startedPlaying.current = true;
+  }, [playerStatus.playing, playerStatus.currentTime]);
+
+  // If the spoken answer doesn't start soon (voice service down), use the phone's own voice instead of getting stuck.
   useEffect(() => {
     if (phase !== "speaking") return;
     const t = setTimeout(() => {
-      if (!startedPlaying.current && phaseRef.current === "speaking") startMic();
-    }, 10000);
+      if (!startedPlaying.current && phaseRef.current === "speaking") phoneVoice(lastReply.current);
+    }, 5000);
     return () => clearTimeout(t);
   }, [phase]);
 
@@ -234,6 +276,7 @@ export function LiveCall({
   const end = async () => {
     activeRef.current = false;
     player.pause();
+    if (Platform.OS === "web" && typeof window !== "undefined") window.speechSynthesis?.cancel();
     if (recorder.isRecording) await stopMic();
     go("starting");
     onClose();
